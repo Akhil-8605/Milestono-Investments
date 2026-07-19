@@ -21,7 +21,10 @@ export const metadata: Metadata = {
   title: { default: 'Milestono Investors', template: '%s | Milestono Investors' },
   description: 'India\'s premier fractional real estate exchange — invest in premium properties like stocks.',
   keywords: ['real estate', 'fractional investment', 'property exchange', 'milestono'],
-  generator: 'v0.app',
+  generator: 'Milestono Team',
+  icons: {
+    icon: '/logo.png',
+  },
 }
 
 export const viewport = {
