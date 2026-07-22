@@ -27,6 +27,7 @@ export interface Portfolio {
 
 export interface LoginResponse {
   token: string
+  firebaseToken?: string
   user: User
   expiresAt: number
 }

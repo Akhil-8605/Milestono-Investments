@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, TrendingUp, Shield, Building2, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { signInWithCustomToken } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 
 const STATS: any[] = []
 
@@ -47,34 +49,41 @@ function LoginContent() {
 
   useEffect(() => {
     const token = searchParams.get('token')
+    const firebaseToken = searchParams.get('firebaseToken')
+    
     if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]))
-        const user = {
-          id: payload._id,
-          name: payload.email.split('@')[0],
-          email: payload.email,
-          role: payload.role || 'investor',
+      const loginWithTokens = async () => {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]))
+          const user = {
+            id: payload._id,
+            name: payload.email.split('@')[0],
+            email: payload.email,
+            role: payload.role || 'investor',
+          }
+          sessionStorage.setItem('milestono_user', JSON.stringify(user))
+          sessionStorage.setItem('milestono_token', token)
+          
+          if (firebaseToken) {
+            await signInWithCustomToken(auth, firebaseToken)
+          }
+          
+          const profileRes = await fetch(`/api/profile?userId=${user.id}`)
+          const profileJson = await profileRes.json()
+
+          if (!profileJson.success) {
+            router.push('/onboarding')
+            return
+          }
+          
+          if (user.role === 'developer') router.push('/developer/dashboard')
+          else if (user.role === 'admin') router.push('/admin/dashboard')
+          else router.push('/investor/dashboard')
+        } catch (e) {
+          setError('Invalid login token from Google')
         }
-        sessionStorage.setItem('milestono_user', JSON.stringify(user))
-        sessionStorage.setItem('milestono_token', token)
-        
-        // Check profile
-        fetch(`/api/profile?userId=${user.id}`)
-          .then(res => res.json())
-          .then(profileRes => {
-            if (profileRes.success) {
-              if (user.role === 'developer') router.push('/developer/dashboard')
-              else if (user.role === 'admin') router.push('/admin/dashboard')
-              else router.push('/investor/dashboard')
-            } else {
-              router.push('/onboarding')
-            }
-          })
-          .catch(() => router.push('/onboarding'))
-      } catch (e) {
-        setError('Invalid login token from Google')
       }
+      loginWithTokens()
     }
   }, [searchParams, router])
 
@@ -95,19 +104,23 @@ function LoginContent() {
       sessionStorage.setItem('milestono_user', JSON.stringify(json.data.user))
       sessionStorage.setItem('milestono_token', json.data.token)
 
+      if (json.data.firebaseToken) {
+        await signInWithCustomToken(auth, json.data.firebaseToken)
+      }
+
       const role = json.data.user.role
-      
-      // Check profile
+
       const profileRes = await fetch(`/api/profile?userId=${json.data.user.id}`)
       const profileJson = await profileRes.json()
 
-      if (profileJson.success) {
-        if (role === 'developer') router.push('/developer/dashboard')
-        else if (role === 'admin') router.push('/admin/dashboard')
-        else router.push('/investor/dashboard')
-      } else {
+      if (!profileJson.success) {
         router.push('/onboarding')
+        return
       }
+      
+      if (role === 'developer') router.push('/developer/dashboard')
+      else if (role === 'admin') router.push('/admin/dashboard')
+      else router.push('/investor/dashboard')
     } catch {
       setError('Connection error. Please try again.')
     } finally {

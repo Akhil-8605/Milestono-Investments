@@ -2,352 +2,368 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Building2, UserCircle2, ArrowRight, ArrowLeft, CheckCircle2, Loader2, UploadCloud } from 'lucide-react'
+import { Loader2, ArrowRight, UploadCloud, CheckCircle2, User as UserIcon, Building2, Building } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { uploadImage } from '@/lib/upload'
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const [user, setUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null)
+  const [role, setRole] = useState<'investor' | 'developer' | null>(null)
+  const [userId, setUserId] = useState<string>('')
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
-  // Forms state
-  const [formData, setFormData] = useState<any>({})
-  const [files, setFiles] = useState<Record<string, File>>({})
-  const [previews, setPreviews] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('milestono_user')
-    if (!raw) {
-      router.replace('/auth/login')
+    const userStr = sessionStorage.getItem('milestono_user')
+    if (!userStr) {
+      router.push('/auth/login')
       return
     }
-    const parsed = JSON.parse(raw)
-    setUser(parsed)
-    // Pre-fill email and name if available
-    setFormData((prev: any) => ({
+    const user = JSON.parse(userStr)
+    setRole(user.role === 'developer' ? 'developer' : 'investor')
+    setUserId(user.id)
+    
+    // Pre-fill email/name if available
+    setFormData(prev => ({
       ...prev,
-      email: parsed.email,
-      fullName: parsed.role === 'investor' ? parsed.name : prev.fullName,
-      companyName: parsed.role === 'developer' ? parsed.name : prev.companyName,
+      email: user.email || '',
+      fullName: user.name || '',
+      companyName: user.name || ''
     }))
   }, [router])
 
-  if (!user) return null
+  // Shared state for all possible fields
+  const [formData, setFormData] = useState({
+    // Investor Fields
+    fullName: '',
+    profilePic: '',
+    email: '',
+    mobile: '',
+    dob: '',
+    country: 'India',
+    state: '',
+    city: '',
+    pan: '',
+    aadhaar: '',
+    // Developer Fields
+    companyName: '',
+    companyPhone: '',
+    companyEmail: '',
+    bio: '',
+    logo: '',
+    banner: '',
+    yearEstablished: '',
+    regNumber: '',
+    gstNumber: '',
+    // Shared Bank Details
+    accountHolder: '',
+    bankName: '',
+    accountNumber: '',
+    ifsc: ''
+  })
 
-  const isDeveloper = user.role === 'developer'
-  const totalSteps = 3
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      setFiles({ ...files, [key]: file })
-      setPreviews({ ...previews, [key]: URL.createObjectURL(file) })
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    if (!e.target.files || e.target.files.length === 0) return
+    const file = e.target.files[0]
+    setLoading(true)
+    setError('')
+    try {
+      const url = await uploadImage(file)
+      if (url) {
+        setFormData(prev => ({ ...prev, [field]: url }))
+      } else {
+        setError('Failed to upload image. Please try again.')
+      }
+    } catch (err) {
+      setError('An error occurred during upload.')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const uploadFile = async (file: File): Promise<string> => {
-    const data = new FormData()
-    data.append('image', file)
-    // Using environment variable or falling back to typical local Node.js port 5000
-    const apiUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:5000'
-    const res = await fetch(`${apiUrl}/api/investors/upload`, {
-      method: 'POST',
-      body: data,
-    })
-    const json = await res.json()
-    if (!json.success) throw new Error(json.error || 'Upload failed')
-    return json.url
-  }
+  const handleNext = () => setStep(prev => prev + 1)
+  const handlePrev = () => setStep(prev => prev - 1)
 
   const handleSubmit = async () => {
     setLoading(true)
     setError('')
     try {
-      // 1. Upload images
-      const uploadedUrls: Record<string, string> = {}
-      for (const [key, file] of Object.entries(files)) {
-        uploadedUrls[key] = await uploadFile(file)
-      }
-
-      // 2. Save profile
-      const profileData = {
-        userId: user.id,
-        role: user.role,
-        ...formData,
-        ...uploadedUrls,
-      }
-
+      const payload = { ...formData, userId, role }
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData),
+        body: JSON.stringify(payload)
       })
-      const json = await res.json()
-
-      if (!json.success) throw new Error(json.error || 'Failed to save profile')
-
-      // 3. Redirect
-      router.push(isDeveloper ? '/developer/dashboard' : '/investor/dashboard')
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong')
+      const data = await res.json()
+      if (data.success) {
+        if (role === 'developer') router.push('/developer/dashboard')
+        else router.push('/investor/dashboard')
+      } else {
+        setError(data.error || 'Failed to save profile.')
+      }
+    } catch (err) {
+      setError('An error occurred while saving profile.')
+    } finally {
       setLoading(false)
     }
   }
 
+  if (!role) return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>
+
+  const isDev = role === 'developer'
+  const totalSteps = 3
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-      {/* Background Decorations */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px]" />
-
-      <div className="w-full max-w-2xl relative z-10">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
-            {isDeveloper ? <Building2 size={32} className="text-primary" /> : <UserCircle2 size={32} className="text-primary" />}
+    <div className="min-h-screen bg-muted/30 flex items-center justify-center py-12 px-4 sm:px-6">
+      <div className="max-w-2xl w-full space-y-8 bg-card p-8 rounded-2xl shadow-sm border border-border">
+        
+        {/* Header */}
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+            {isDev ? <Building2 className="text-primary w-6 h-6" /> : <UserIcon className="text-primary w-6 h-6" />}
           </div>
-          <h1 className="text-3xl font-bold text-foreground">
-            {isDeveloper ? 'Setup Developer Profile' : 'Complete Your Profile'}
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Let's get your {isDeveloper ? 'company' : 'investor'} account configured.
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">
+            {isDev ? 'Complete Developer Profile' : 'Complete Investor Profile'}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Step {step} of {totalSteps}: {
+              step === 1 ? 'Basic Information' :
+              step === 2 && isDev ? 'Company Details' :
+              step === 2 && !isDev ? 'Identity Verification' :
+              'Bank Details'
+            }
           </p>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm">
+          
           {/* Progress Bar */}
-          <div className="flex w-full h-1 bg-muted">
+          <div className="w-full bg-muted rounded-full h-1.5 mt-6 overflow-hidden">
             <div 
-              className="h-full bg-primary transition-all duration-500 ease-out"
-              style={{ width: `${(step / totalSteps) * 100}%` }}
+              className="bg-primary h-1.5 transition-all duration-300" 
+              style={{ width: `${(step / totalSteps) * 100}%` }} 
             />
           </div>
+        </div>
 
-          <div className="p-6 sm:p-10 space-y-8">
-            {error && (
-              <div className="bg-loss/10 border border-loss/20 text-loss text-sm px-4 py-3 rounded-lg flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-loss animate-pulse" />
-                {error}
+        {error && (
+          <div className="bg-loss/10 border border-loss/20 text-loss px-4 py-3 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-6 mt-8">
+          {/* INVESTOR - STEP 1: Basic Info */}
+          {!isDev && step === 1 && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2 flex flex-col items-center justify-center p-6 border-2 border-dashed border-border rounded-xl bg-muted/50">
+                {formData.profilePic ? (
+                  <div className="relative w-24 h-24">
+                    <img src={formData.profilePic} alt="Profile" className="w-full h-full object-cover rounded-full border border-border" />
+                    <button onClick={() => setFormData({ ...formData, profilePic: '' })} className="absolute -top-2 -right-2 bg-background border border-border rounded-full p-1 text-xs hover:text-loss">✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <UploadCloud className="w-8 h-8 text-muted-foreground mb-3" />
+                    <label className="cursor-pointer text-sm font-medium text-primary hover:underline">
+                      Upload Profile Picture
+                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'profilePic')} />
+                    </label>
+                  </>
+                )}
               </div>
-            )}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
+                <Input name="fullName" value={formData.fullName} onChange={handleChange} placeholder="John Doe" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
+                <Input name="email" value={formData.email} onChange={handleChange} placeholder="john@example.com" disabled />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Mobile Number</label>
+                <Input name="mobile" value={formData.mobile} onChange={handleChange} placeholder="+91" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Date of Birth</label>
+                <Input name="dob" type="date" value={formData.dob} onChange={handleChange} />
+              </div>
+            </div>
+          )}
 
-            {/* INVESTOR FLOW */}
-            {!isDeveloper && (
-              <>
-                {step === 1 && (
-                  <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
-                    <h2 className="text-xl font-semibold border-b border-border pb-2">Personal Information</h2>
-                    <div className="flex justify-center mb-6">
-                      <label className="cursor-pointer group relative w-32 h-32 rounded-full border-2 border-dashed border-border hover:border-primary transition-colors flex items-center justify-center overflow-hidden">
-                        {previews.profilePic ? (
-                          <img src={previews.profilePic} alt="Profile" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="text-center text-muted-foreground group-hover:text-primary transition-colors">
-                            <Camera size={24} className="mx-auto mb-1" />
-                            <span className="text-xs">Upload Photo</span>
-                          </div>
-                        )}
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'profilePic')} />
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Full Name</label>
-                        <Input value={formData.fullName || ''} onChange={(e) => setFormData({...formData, fullName: e.target.value})} placeholder="e.g. Arjun Sharma" className="bg-background" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Date of Birth</label>
-                        <Input type="date" value={formData.dob || ''} onChange={(e) => setFormData({...formData, dob: e.target.value})} className="bg-background" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Email</label>
-                        <Input value={formData.email || ''} disabled className="bg-muted text-muted-foreground" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Mobile Number</label>
-                        <Input value={formData.mobile || ''} onChange={(e) => setFormData({...formData, mobile: e.target.value})} placeholder="+91 XXXXX XXXXX" className="bg-background" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {step === 2 && (
-                  <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
-                    <h2 className="text-xl font-semibold border-b border-border pb-2">Identity & Address</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">PAN Number</label>
-                        <Input value={formData.pan || ''} onChange={(e) => setFormData({...formData, pan: e.target.value})} placeholder="ABCDE1234F" className="bg-background uppercase" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Aadhaar Number</label>
-                        <Input value={formData.aadhaar || ''} onChange={(e) => setFormData({...formData, aadhaar: e.target.value})} placeholder="1234 5678 9012" className="bg-background" />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Full Address</label>
-                        <Input value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} placeholder="Street address, building, floor..." className="bg-background" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">City</label>
-                        <Input value={formData.city || ''} onChange={(e) => setFormData({...formData, city: e.target.value})} placeholder="e.g. Mumbai" className="bg-background" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">State</label>
-                        <Input value={formData.state || ''} onChange={(e) => setFormData({...formData, state: e.target.value})} placeholder="e.g. Maharashtra" className="bg-background" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+          {/* INVESTOR - STEP 2: Identity & Address */}
+          {!isDev && step === 2 && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+               <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Country</label>
+                <Input name="country" value={formData.country} onChange={handleChange} placeholder="India" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">State</label>
+                <Input name="state" value={formData.state} onChange={handleChange} placeholder="Maharashtra" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">City</label>
+                <Input name="city" value={formData.city} onChange={handleChange} placeholder="Mumbai" />
+              </div>
+              <div className="sm:col-span-2 border-t border-border pt-4 mt-2"></div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">PAN Number</label>
+                <Input name="pan" value={formData.pan} onChange={handleChange} placeholder="ABCDE1234F" className="uppercase" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Aadhaar Number</label>
+                <Input name="aadhaar" value={formData.aadhaar} onChange={handleChange} placeholder="1234 5678 9012" />
+              </div>
+            </div>
+          )}
 
-            {/* DEVELOPER FLOW */}
-            {isDeveloper && (
-              <>
-                {step === 1 && (
-                  <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
-                    <h2 className="text-xl font-semibold border-b border-border pb-2">Company Assets</h2>
-                    <div className="space-y-4">
-                      <label className="cursor-pointer group relative w-full h-32 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors flex flex-col items-center justify-center overflow-hidden bg-muted/50">
-                        {previews.companyBanner ? (
-                          <img src={previews.companyBanner} alt="Banner" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="text-center text-muted-foreground group-hover:text-primary transition-colors">
-                            <UploadCloud size={28} className="mx-auto mb-2" />
-                            <span className="text-sm font-medium">Upload Company Banner</span>
-                          </div>
-                        )}
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'companyBanner')} />
+          {/* DEVELOPER - STEP 1: Basic Info & Branding */}
+          {isDev && step === 1 && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2 space-y-4">
+                <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-border rounded-xl bg-muted/50 h-32 relative overflow-hidden">
+                  {formData.banner ? (
+                    <>
+                      <img src={formData.banner} alt="Banner" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                      <button onClick={() => setFormData({ ...formData, banner: '' })} className="relative z-10 bg-background/80 backdrop-blur border border-border rounded-md px-3 py-1 text-xs hover:text-loss">Remove Banner</button>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-6 h-6 text-muted-foreground mb-2" />
+                      <label className="cursor-pointer text-sm font-medium text-primary hover:underline">
+                        Upload Company Banner
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'banner')} />
                       </label>
-                      <label className="cursor-pointer group relative w-24 h-24 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors flex flex-col items-center justify-center overflow-hidden bg-muted/50 mt-[-3rem] ml-4 z-10 shadow-lg bg-background">
-                        {previews.companyLogo ? (
-                          <img src={previews.companyLogo} alt="Logo" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="text-center text-muted-foreground group-hover:text-primary transition-colors pt-2">
-                            <Camera size={20} className="mx-auto mb-1" />
-                            <span className="text-[10px] uppercase font-bold">Logo</span>
-                          </div>
-                        )}
-                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'companyLogo')} />
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Company Name</label>
-                        <Input value={formData.companyName || ''} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="bg-background" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Year Established</label>
-                        <Input value={formData.yearEstablished || ''} onChange={(e) => setFormData({...formData, yearEstablished: e.target.value})} type="number" placeholder="e.g. 2010" className="bg-background" />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Company Bio</label>
-                        <textarea 
-                          value={formData.bio || ''} 
-                          onChange={(e) => setFormData({...formData, bio: e.target.value})} 
-                          placeholder="Short description of your real estate firm..." 
-                          className="w-full h-24 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-                    </div>
+                    </>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0 w-20 h-20 bg-muted border border-border rounded-xl flex items-center justify-center overflow-hidden relative">
+                     {formData.logo ? (
+                        <>
+                          <img src={formData.logo} alt="Logo" className="w-full h-full object-cover" />
+                          <button onClick={() => setFormData({ ...formData, logo: '' })} className="absolute inset-0 bg-black/50 text-white text-xs opacity-0 hover:opacity-100 flex items-center justify-center">Remove</button>
+                        </>
+                     ) : (
+                       <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center">
+                         <Building className="w-6 h-6 text-muted-foreground mb-1" />
+                         <span className="text-[10px] text-muted-foreground">Logo</span>
+                         <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'logo')} />
+                       </label>
+                     )}
                   </div>
-                )}
-                {step === 2 && (
-                  <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
-                    <h2 className="text-xl font-semibold border-b border-border pb-2">Legal & Operating</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Registration Number</label>
-                        <Input value={formData.registrationNumber || ''} onChange={(e) => setFormData({...formData, registrationNumber: e.target.value})} placeholder="CIN / LLPIN" className="bg-background uppercase" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">GST Number (Optional)</label>
-                        <Input value={formData.gst || ''} onChange={(e) => setFormData({...formData, gst: e.target.value})} placeholder="22AAAAA0000A1Z5" className="bg-background uppercase" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Support Email</label>
-                        <Input value={formData.supportEmail || ''} onChange={(e) => setFormData({...formData, supportEmail: e.target.value})} placeholder="contact@company.com" className="bg-background" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Phone Number</label>
-                        <Input value={formData.phone || ''} onChange={(e) => setFormData({...formData, phone: e.target.value})} placeholder="+91 XXXXX XXXXX" className="bg-background" />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Operating Address</label>
-                        <Input value={formData.address || ''} onChange={(e) => setFormData({...formData, address: e.target.value})} placeholder="Headquarters address..." className="bg-background" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* COMMON FINAL STEP (Banking) */}
-            {step === 3 && (
-              <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
-                <h2 className="text-xl font-semibold border-b border-border pb-2">Bank Details</h2>
-                <p className="text-sm text-muted-foreground mb-4">Required for processing payouts and investments securely.</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Account Holder Name</label>
-                    <Input value={formData.accountHolder || ''} onChange={(e) => setFormData({...formData, accountHolder: e.target.value})} placeholder="As per bank records" className="bg-background" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Bank Name</label>
-                    <Input value={formData.bankName || ''} onChange={(e) => setFormData({...formData, bankName: e.target.value})} placeholder="e.g. HDFC Bank" className="bg-background" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">IFSC Code</label>
-                    <Input value={formData.ifsc || ''} onChange={(e) => setFormData({...formData, ifsc: e.target.value})} placeholder="HDFC0001234" className="bg-background uppercase" />
-                  </div>
-                  <div className="col-span-2 space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Account Number</label>
-                    <Input type="password" value={formData.accountNumber || ''} onChange={(e) => setFormData({...formData, accountNumber: e.target.value})} placeholder="XXXXXXXXXXXX" className="bg-background tracking-widest font-mono" />
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Company Name</label>
+                    <Input name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Milestono Dev Corp" />
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* Navigation */}
-            <div className="flex justify-between pt-6 mt-8 border-t border-border">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep(s => s - 1)}
-                disabled={step === 1 || loading}
-                className="bg-background text-muted-foreground border-border hover:bg-muted"
-              >
-                <ArrowLeft size={16} className="mr-2" />
-                Back
-              </Button>
-
-              {step < totalSteps ? (
-                <Button
-                  onClick={() => setStep(s => s + 1)}
-                  className="bg-primary hover:bg-blue-600 text-white min-w-[100px]"
-                >
-                  Next
-                  <ArrowRight size={16} className="ml-2" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="bg-primary hover:bg-blue-600 text-white min-w-[140px]"
-                >
-                  {loading ? (
-                    <><Loader2 size={16} className="mr-2 animate-spin" /> Saving...</>
-                  ) : (
-                    <><CheckCircle2 size={16} className="mr-2" /> Complete Setup</>
-                  )}
-                </Button>
-              )}
+              
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Company Email</label>
+                <Input name="companyEmail" value={formData.companyEmail} onChange={handleChange} placeholder="contact@company.com" disabled={!!formData.email} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Company Phone</label>
+                <Input name="companyPhone" value={formData.companyPhone} onChange={handleChange} placeholder="+91" />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Company Bio</label>
+                <textarea 
+                  name="bio" value={formData.bio} onChange={handleChange} 
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Tell investors about your company..."
+                />
+              </div>
             </div>
+          )}
 
-          </div>
+          {/* DEVELOPER - STEP 2: Address & Legal */}
+          {isDev && step === 2 && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Country</label>
+                <Input name="country" value={formData.country} onChange={handleChange} placeholder="India" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">State</label>
+                <Input name="state" value={formData.state} onChange={handleChange} placeholder="Maharashtra" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">City</label>
+                <Input name="city" value={formData.city} onChange={handleChange} placeholder="Mumbai" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Year Established</label>
+                <Input name="yearEstablished" value={formData.yearEstablished} onChange={handleChange} placeholder="2010" />
+              </div>
+              <div className="sm:col-span-2 border-t border-border pt-4 mt-2"></div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Registration Number</label>
+                <Input name="regNumber" value={formData.regNumber} onChange={handleChange} placeholder="CIN123456789" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">GST Number (Optional)</label>
+                <Input name="gstNumber" value={formData.gstNumber} onChange={handleChange} placeholder="22AAAAA0000A1Z5" className="uppercase" />
+              </div>
+            </div>
+          )}
+
+          {/* SHARED - STEP 3: Bank Details */}
+          {step === 3 && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2 bg-blue-500/10 border border-blue-500/20 text-blue-500 text-sm px-4 py-3 rounded-lg mb-2">
+                Your bank details are securely stored and will be used for transactions and distributions.
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Account Holder Name</label>
+                <Input name="accountHolder" value={formData.accountHolder} onChange={handleChange} placeholder="Name exactly as on bank account" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Bank Name</label>
+                <Input name="bankName" value={formData.bankName} onChange={handleChange} placeholder="HDFC Bank" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">IFSC Code</label>
+                <Input name="ifsc" value={formData.ifsc} onChange={handleChange} placeholder="HDFC0001234" className="uppercase" />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Account Number</label>
+                <Input name="accountNumber" type="password" value={formData.accountNumber} onChange={handleChange} placeholder="••••••••••••" />
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Footer actions */}
+        <div className="flex items-center justify-between pt-6 border-t border-border mt-8">
+          <Button 
+            variant="ghost" 
+            onClick={handlePrev} 
+            disabled={step === 1 || loading}
+            className="text-muted-foreground"
+          >
+            Back
+          </Button>
+          
+          {step < totalSteps ? (
+            <Button onClick={handleNext} disabled={loading} className="gap-2">
+              Continue <ArrowRight size={16} />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={loading} className="gap-2 bg-green-600 hover:bg-green-700 text-white">
+              {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <CheckCircle2 size={16} />}
+              Complete Profile
+            </Button>
+          )}
+        </div>
+
       </div>
     </div>
   )
