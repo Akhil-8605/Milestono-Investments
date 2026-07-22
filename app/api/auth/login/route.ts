@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ApiResponse, LoginResponse } from '@/lib/types'
 
-const MILESTONO_API = process.env.BASE_URL || 'https://api.milestono.com:6005'
+const MILESTONO_API = process.env.BASE_URL || 'http://api.milestono.com:6005'
 
 export async function POST(req: NextRequest) {
   try {
