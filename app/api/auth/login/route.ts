@@ -1,5 +1,3 @@
-require('dns').setDefaultResultOrder('ipv4first');
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import { NextRequest, NextResponse } from 'next/server'
 import { ApiResponse, LoginResponse } from '@/lib/types'
 
@@ -27,7 +25,7 @@ export async function POST(req: NextRequest) {
           'Accept': 'application/json',
         },
         body: JSON.stringify({ email, password }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(20000),
       })
     } catch (fetchErr) {
       console.warn('[Auth] External API unreachable:', fetchErr)
