@@ -17,15 +17,6 @@ const fmtC = (n: number) => {
   return fmt(n)
 }
 
-const DEMO: any[] = [
-  { id: 'd1', propertyId: 'prop-1', symbol: 'PRSN', city: 'Bangalore', type: 'residential', unitsOwned: 12, buyPrice: 118000, currentPrice: 125000, invested: 1416000, currentValue: 1500000, pl: 84000, plPct: 5.93, yield: 9.2 },
-  { id: 'd2', propertyId: 'prop-2', symbol: 'GDBK', city: 'Mumbai',    type: 'commercial',  unitsOwned: 5,  buyPrice: 272000, currentPrice: 285000, invested: 1360000, currentValue: 1425000, pl: 65000, plPct: 4.78, yield: 7.8 },
-  { id: 'd3', propertyId: 'prop-4', symbol: 'EMTV', city: 'Bangalore', type: 'commercial',  unitsOwned: 20, buyPrice: 95200,  currentPrice: 98000,  invested: 1904000, currentValue: 1960000, pl: 56000, plPct: 2.94, yield: 11.2 },
-  { id: 'd4', propertyId: 'prop-11',symbol: 'MHWC', city: 'Chennai',   type: 'industrial',  unitsOwned: 30, buyPrice: 36500,  currentPrice: 35000,  invested: 1095000, currentValue: 1050000, pl: -45000,plPct: -4.11, yield: 12.4 },
-  { id: 'd5', propertyId: 'prop-6', symbol: 'PHPL', city: 'Lucknow',   type: 'commercial',  unitsOwned: 8,  buyPrice: 52000,  currentPrice: 55000,  invested: 416000,  currentValue: 440000,  pl: 24000, plPct: 5.77, yield: 10.5 },
-  { id: 'd6', propertyId: 'prop-9', symbol: 'THSR', city: 'Mumbai',    type: 'residential', unitsOwned: 4,  buyPrice: 188000, currentPrice: 195000, invested: 752000,  currentValue: 780000,  pl: 28000, plPct: 3.72, yield: 9.7 },
-]
-
 export default function PortfolioPage() {
   const router = useRouter()
   const [holdings, setHoldings] = useState<any[]>([])
@@ -39,9 +30,13 @@ export default function PortfolioPage() {
     try {
       const res = await fetch('/api/portfolio')
       const json = await res.json()
-      setHoldings(json.success && json.data?.holdings?.length ? json.data.holdings : DEMO)
+      if (json.success && json.data?.holdings) {
+        setHoldings(json.data.holdings)
+      } else {
+        setHoldings([])
+      }
     } catch {
-      setHoldings(DEMO)
+      setHoldings([])
     } finally {
       setLoading(false)
     }
@@ -167,6 +162,17 @@ export default function PortfolioPage() {
                       ))}
                     </tr>
                   ))
+                ) : displayed.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-16 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Briefcase className="w-10 h-10 text-muted-foreground/30" />
+                        <p className="text-sm font-semibold text-foreground">No investments found</p>
+                        <p className="text-xs max-w-sm mx-auto">Your portfolio is currently empty. Start exploring the market to build your fractional real estate portfolio.</p>
+                        <button onClick={() => router.push('/market')} className="mt-2 px-4 py-2 bg-primary/20 text-primary hover:bg-primary hover:text-primary-foreground rounded-lg text-xs font-bold transition-colors">Explore Market</button>
+                      </div>
+                    </td>
+                  </tr>
                 ) : displayed.map(h => {
                   const up = h.pl >= 0
                   const typeColor = h.type === 'commercial' ? { bg: '#1d3a6b', text: '#93c5fd' } : h.type === 'industrial' ? { bg: '#2d1b5a', text: '#c4b5fd' } : { bg: '#14281a', text: '#4ade80' }
@@ -174,7 +180,7 @@ export default function PortfolioPage() {
                     <tr
                       key={h.id}
                       className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/properties/${h.propertyId}`)}
+                      onClick={() => router.push(`/investor/portfolio/${h.symbol}`)}
                     >
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">

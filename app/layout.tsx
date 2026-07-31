@@ -44,7 +44,7 @@ export default function RootLayout({
         <ThemeProvider>
           <SessionProvider>
             <TooltipProvider>
-              {/* <Ticker /> */}
+              <Ticker />
               {children}
             </TooltipProvider>
           </SessionProvider>

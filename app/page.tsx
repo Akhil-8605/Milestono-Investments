@@ -95,7 +95,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Ticker />
       {/* Nav */}
       <header className="border-b border-border bg-sidebar/90 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">

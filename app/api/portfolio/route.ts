@@ -37,8 +37,11 @@ export async function GET(req: NextRequest) {
 
       const property = propertyDoc.data() as any
 
-      const curVal = inv.unitsOwned * property.marketData.currentPrice
-      const prevVal = inv.unitsOwned * property.marketData.prevDayPrice
+      const currentPrice = property.marketData?.currentPrice ?? property.unitPrice ?? 0
+      const prevDayPrice = property.marketData?.prevDayPrice ?? property.unitPrice ?? 0
+
+      const curVal = inv.unitsOwned * currentPrice
+      const prevVal = inv.unitsOwned * prevDayPrice
       const pl = curVal - inv.amountInvested
       const plPct = inv.amountInvested > 0 ? (pl / inv.amountInvested) * 100 : 0
 
@@ -54,7 +57,7 @@ export async function GET(req: NextRequest) {
         type: property.type,
         unitsOwned: inv.unitsOwned,
         buyPrice: inv.unitPrice,
-        currentPrice: property.marketData.currentPrice,
+        currentPrice: currentPrice,
         invested: inv.amountInvested,
         currentValue: curVal,
         pl,

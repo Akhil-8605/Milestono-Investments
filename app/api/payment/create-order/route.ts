@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     })
 
     const options = {
-      // amount: amount * 100, // Razorpay takes amount in the smallest currency unit (paise)
+          // amount: amount * 100, // Razorpay takes amount in the smallest currency unit (paise)
       amount: 100, // FOR TESTING (₹1.00)
       currency,
       receipt: receipt || `rcpt_${Date.now()}`

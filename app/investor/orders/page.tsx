@@ -1,267 +1,123 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/shell/app-layout'
-import { SearchFilter } from '@/components/search/search-filter'
-import { DataTable } from '@/components/table/data-table'
-import { Eye, Trash2, TrendingUp, TrendingDown, Calendar } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Card } from '@/components/ui/card'
+import { Transaction } from '@/lib/types'
+import { Loader2, ArrowRightLeft, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { format } from 'date-fns'
 
-const mockOrders = [
-  {
-    id: '1',
-    symbol: 'DOWNOFC',
-    property: 'Downtown Office Complex',
-    type: 'buy',
-    units: 50,
-    unitPrice: 10000,
-    totalValue: 500000,
-    date: '2024-01-15',
-    status: 'completed',
-    return: 2500,
-  },
-  {
-    id: '2',
-    symbol: 'SKYRES',
-    property: 'Sky Residence Tower',
-    type: 'buy',
-    units: 100,
-    unitPrice: 8500,
-    totalValue: 850000,
-    date: '2024-01-20',
-    status: 'completed',
-    return: 5100,
-  },
-  {
-    id: '3',
-    symbol: 'WESTMALL',
-    property: 'West Shopping Mall',
-    type: 'sell',
-    units: 30,
-    unitPrice: 12000,
-    totalValue: 360000,
-    date: '2024-01-22',
-    status: 'pending',
-    return: -900,
-  },
-]
+export default function InvestorOrdersPage() {
+  const { user } = useSession()
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-export default function OrdersPage() {
-  const [orders, setOrders] = useState(mockOrders)
-  const [filteredOrders, setFilteredOrders] = useState(mockOrders)
-
-  const handleSearch = (query: string) => {
-    const filtered = orders.filter(
-      (order) =>
-        order.symbol.toLowerCase().includes(query.toLowerCase()) ||
-        order.property.toLowerCase().includes(query.toLowerCase())
-    )
-    setFilteredOrders(filtered)
-  }
-
-  const handleFilter = (filters: Record<string, any>) => {
-    let filtered = orders
-
-    if (filters.type) {
-      filtered = filtered.filter((o) => o.type === filters.type)
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      if (!user) return
+      try {
+        const q = query(
+          collection(db, 'transactions'),
+          where('userId', '==', user.id)
+        )
+        const snap = await getDocs(q)
+        let docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction))
+        
+        // Sort in memory to avoid composite index error for MVP
+        docs.sort((a, b) => {
+          const timeA = (a.timestamp as any)?.toMillis ? (a.timestamp as any).toMillis() : new Date(a.timestamp).getTime()
+          const timeB = (b.timestamp as any)?.toMillis ? (b.timestamp as any).toMillis() : new Date(b.timestamp).getTime()
+          return timeB - timeA
+        })
+        
+        setTransactions(docs)
+      } catch (err) {
+        toast.error('Failed to load transaction history')
+      } finally {
+        setIsLoading(false)
+      }
     }
-    if (filters.status) {
-      filtered = filtered.filter((o) => o.status === filters.status)
+    fetchTransactions()
+  }, [user])
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'completed': return { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'Completed' }
+      case 'pending_admin_approval': return { icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'Verification Pending' }
+      case 'failed': return { icon: XCircle, color: 'text-rose-500', bg: 'bg-rose-500/10', border: 'border-rose-500/20', text: 'Failed' }
+      default: return { icon: AlertCircle, color: 'text-muted-foreground', bg: 'bg-muted', border: 'border-border', text: status }
     }
-
-    setFilteredOrders(filtered)
-  }
-
-  const handleExport = () => {
-    const csv = [
-      ['Symbol', 'Property', 'Type', 'Units', 'Unit Price', 'Total Value', 'Date', 'Status'].join(','),
-      ...filteredOrders.map((o) =>
-        [o.symbol, o.property, o.type, o.units, o.unitPrice, o.totalValue, o.date, o.status].join(',')
-      ),
-    ].join('\n')
-
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'orders.csv'
-    a.click()
   }
 
   return (
-    <AppLayout title="Orders" subtitle="Investment order history">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Order History</h1>
-          <p className="text-muted-foreground mt-1">View and manage all your investment orders</p>
+    <AppLayout requiredRole="investor" title="My Orders">
+      <div className="max-w-[1200px] mx-auto px-6 py-10 space-y-8">
+        
+        <div className="flex items-center justify-between border-b pb-6">
+          <div>
+            <h1 className="text-3xl font-black tracking-tight text-foreground">Order History</h1>
+            <p className="text-muted-foreground mt-1 text-sm font-medium">Track your investment allocations and payment statuses.</p>
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          {[
-            {
-              label: 'Total Orders',
-              value: orders.length,
-              icon: '📊',
-              color: 'blue',
-            },
-            {
-              label: 'Buy Orders',
-              value: orders.filter((o) => o.type === 'buy').length,
-              icon: '📈',
-              color: 'green',
-            },
-            {
-              label: 'Sell Orders',
-              value: orders.filter((o) => o.type === 'sell').length,
-              icon: '📉',
-              color: 'red',
-            },
-            {
-              label: 'Total Returns',
-              value: `₹${orders.reduce((sum, o) => sum + o.return, 0).toLocaleString()}`,
-              icon: '💰',
-              color: 'purple',
-            },
-          ].map(({ label, value, icon, color }) => (
-            <div key={label} className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                    {label}
-                  </p>
-                  <p className="text-2xl font-bold text-foreground mt-2">{value}</p>
-                </div>
-                <span className="text-3xl">{icon}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <Card className="flex flex-col h-[400px] items-center justify-center border-dashed border-2 bg-card/30 shadow-none">
+            <ArrowRightLeft className="h-12 w-12 text-muted-foreground mb-4 opacity-30" />
+            <h3 className="text-lg font-bold">No Transactions Found</h3>
+            <p className="text-muted-foreground text-sm mt-2">You haven't made any investment purchases yet.</p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {transactions.map((tx) => {
+              const cfg = getStatusConfig(tx.status)
+              const Icon = cfg.icon
+              const date = (tx.timestamp as any)?.toDate ? (tx.timestamp as any).toDate() : new Date(tx.timestamp || Date.now())
 
-        {/* Search and Filter */}
-        <SearchFilter
-          onSearch={handleSearch}
-          onFilter={handleFilter}
-          onExport={handleExport}
-          filters={[
-            {
-              label: 'Order Type',
-              key: 'type',
-              type: 'select',
-              options: [
-                { label: 'Buy', value: 'buy' },
-                { label: 'Sell', value: 'sell' },
-              ],
-            },
-            {
-              label: 'Status',
-              key: 'status',
-              type: 'select',
-              options: [
-                { label: 'Completed', value: 'completed' },
-                { label: 'Pending', value: 'pending' },
-              ],
-            },
-          ]}
-          placeholder="Search orders..."
-        />
-
-        {/* Data Table */}
-        <DataTable
-          columns={[
-            {
-              key: 'symbol' as const,
-              label: 'Symbol',
-              width: 'w-20',
-              render: (val) => (
-                <span className="font-mono font-semibold text-primary">{val}</span>
-              ),
-            },
-            {
-              key: 'property' as const,
-              label: 'Property',
-              sortable: true,
-            },
-            {
-              key: 'type' as const,
-              label: 'Type',
-              render: (val) => (
-                <span
-                  className={cn(
-                    'px-2 py-1 rounded text-xs font-semibold',
-                    val === 'buy'
-                      ? 'bg-green-500/10 text-gain'
-                      : 'bg-loss/10 text-loss'
-                  )}
-                >
-                  {val.toUpperCase()}
-                </span>
-              ),
-            },
-            {
-              key: 'units' as const,
-              label: 'Units',
-              sortable: true,
-              render: (val) => val.toLocaleString(),
-            },
-            {
-              key: 'unitPrice' as const,
-              label: 'Unit Price',
-              sortable: true,
-              render: (val) => `₹${val.toLocaleString()}`,
-            },
-            {
-              key: 'totalValue' as const,
-              label: 'Total Value',
-              sortable: true,
-              render: (val) => (
-                <span className="font-semibold text-foreground">
-                  ₹{val.toLocaleString()}
-                </span>
-              ),
-            },
-            {
-              key: 'date' as const,
-              label: 'Date',
-              sortable: true,
-              render: (val) => new Date(val).toLocaleDateString(),
-            },
-            {
-              key: 'status' as const,
-              label: 'Status',
-              render: (val) => (
-                <span
-                  className={cn(
-                    'px-2 py-1 rounded text-xs font-semibold',
-                    val === 'completed'
-                      ? 'bg-green-500/10 text-gain'
-                      : 'bg-yellow-500/10 text-yellow-500'
-                  )}
-                >
-                  {val.charAt(0).toUpperCase() + val.slice(1)}
-                </span>
-              ),
-            },
-            {
-              key: 'return' as const,
-              label: 'Return',
-              render: (val) => (
-                <span
-                  className={val >= 0 ? 'text-gain' : 'text-loss'}
-                >
-                  {val >= 0 ? '+' : ''}₹{Math.abs(val).toLocaleString()}
-                </span>
-              ),
-            },
-          ]}
-          data={filteredOrders}
-          rowKey="id"
-          onRowClick={(row) => {
-            console.log('Order clicked:', row)
-          }}
-        />
+              return (
+                <Card key={tx.id} className="p-6 border border-border/50 hover:shadow-lg transition-all rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="flex items-center gap-6">
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-bold text-lg">{tx.propertyName} <span className="text-primary bg-primary/10 px-2 py-0.5 rounded text-xs tracking-widest">{tx.propertySymbol}</span></h4>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
+                        <span>{format(date, 'MMM dd, yyyy • hh:mm a')}</span>
+                        <span>•</span>
+                        <span>{tx.type === 'buy' ? 'Purchase' : 'Sell'}</span>
+                        {tx.paymentMethod === 'neft_with_token' && (
+                          <>
+                            <span>•</span>
+                            <span className="text-indigo-500 font-bold">NEFT / Token</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col items-end gap-1 w-full md:w-auto bg-muted/20 p-4 rounded-xl border">
+                    <span className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Total Allocation</span>
+                    <span className="text-2xl font-mono font-black text-foreground">₹{tx.totalAmount.toLocaleString('en-IN')}</span>
+                    <div className="flex items-center justify-between w-full mt-2 pt-2 border-t border-border/50">
+                      <span className="text-xs text-muted-foreground font-medium">{tx.units} Units @ ₹{tx.unitPrice.toLocaleString('en-IN')}</span>
+                      <span className={`text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded ${cfg.bg} ${cfg.color}`}>{cfg.text}</span>
+                    </div>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        )}
       </div>
     </AppLayout>
   )

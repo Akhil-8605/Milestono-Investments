@@ -51,7 +51,7 @@ export default function PropertyDetailsPage() {
 
   useEffect(() => {
     if (!globalId) return
-    
+
     const unsubscribe = onSnapshot(doc(db, 'properties', globalId), (docSnap) => {
       if (docSnap.exists()) {
         setProperty({ id: docSnap.id, ...docSnap.data() } as Property)
@@ -75,7 +75,7 @@ export default function PropertyDetailsPage() {
       toast.error('Please log in to send an inquiry')
       return
     }
-    
+
     setIsSubmittingInquiry(true)
     try {
       await addDoc(collection(db, 'inquiries'), {
@@ -105,9 +105,13 @@ export default function PropertyDetailsPage() {
       return
     }
     try {
-      await setDoc(doc(db, 'users', user.id), {
-        watchlist: arrayUnion(globalId)
-      }, { merge: true })
+      const res = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, propertyId: property?.id || globalId }),
+      })
+      if (!res.ok) throw new Error('API failed')
+
       if (property) {
         await logPropertyWatchlist(property.id, property.symbol, property.developerId, user, 'add')
       }
@@ -198,11 +202,11 @@ export default function PropertyDetailsPage() {
                   </span>
                 )}
               </div>
-              
+
               <h1 className="text-4xl md:text-6xl font-black tracking-tight text-foreground max-w-3xl leading-tight">
                 {property.name}
               </h1>
-              
+
               <div className="flex items-center text-muted-foreground text-sm md:text-base font-medium">
                 <MapPin className="h-4 w-4 mr-2 text-primary" />
                 {loc ? `${loc.areaLocality || loc.city}, ${loc.state}` : `${property.location}, ${property.city}`}
@@ -236,23 +240,23 @@ export default function PropertyDetailsPage() {
         </header>
 
         <div className="w-[90vw] max-w-[95rem] mx-auto px-6 mt-10 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* Main Content (Left 8 Columns) */}
           <div className="lg:col-span-8 space-y-10">
-            
+
             {/* Media Bento Box */}
             {property.images && property.images.length > 0 && (
               <div className="grid grid-cols-3 grid-rows-2 gap-4 h-[500px]">
-                <div 
+                <div
                   className="col-span-2 row-span-2 rounded-3xl overflow-hidden relative group cursor-pointer border border-border/50 shadow-lg"
                   onClick={() => { setCurrentImageIndex(0); setIsOverlayOpen(true); }}
                 >
                   <img src={property.images[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="Main" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent group-hover:opacity-60 transition-all duration-500" />
                 </div>
-                
+
                 {property.images[1] ? (
-                  <div 
+                  <div
                     className="col-span-1 row-span-1 rounded-3xl overflow-hidden relative group cursor-pointer border border-border/50 shadow-md"
                     onClick={() => { setCurrentImageIndex(1); setIsOverlayOpen(true); }}
                   >
@@ -260,9 +264,9 @@ export default function PropertyDetailsPage() {
                     <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-all duration-500" />
                   </div>
                 ) : <div className="col-span-1 row-span-1 rounded-3xl bg-muted/50 border border-border/50 backdrop-blur-sm" />}
-                
+
                 {property.images[2] ? (
-                  <div 
+                  <div
                     className="col-span-1 row-span-1 rounded-3xl overflow-hidden relative group cursor-pointer border border-border/50 shadow-md flex items-center justify-center"
                     onClick={() => { setCurrentImageIndex(2); setIsOverlayOpen(true); }}
                   >
@@ -298,14 +302,14 @@ export default function PropertyDetailsPage() {
                   <AreaChart data={property.marketData?.priceHistory || []} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorPrice2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0}/>
+                        <stop offset="5%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 600 }} dy={15} minTickGap={30} />
                     <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 600 }} tickFormatter={(value) => `₹${value.toLocaleString('en-IN')}`} dx={-15} orientation="right" />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}
                       itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '16px' }}
                       formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Price']}
@@ -332,7 +336,7 @@ export default function PropertyDetailsPage() {
                 <h3 className="text-2xl font-bold text-foreground mb-8 flex items-center gap-3 relative z-10">
                   <BarChart3 className="w-6 h-6 text-primary" /> Financial Metrics
                 </h3>
-                
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 relative z-10">
                   <div className="bg-background/60 dark:bg-black/20 p-5 rounded-2xl border border-border/50 shadow-sm">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2 font-bold">Total Valuation</p>
@@ -363,7 +367,7 @@ export default function PropertyDetailsPage() {
               <h3 className="text-2xl font-bold text-foreground mb-8 flex items-center gap-3">
                 <Building2 className="w-6 h-6 text-indigo-500 dark:text-indigo-400" /> Asset Specifications
               </h3>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="flex flex-col gap-1">
                   <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Type</p>
@@ -377,21 +381,21 @@ export default function PropertyDetailsPage() {
                   <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">{specs?.areaType || "Total Area"}</p>
                   <p className="font-bold text-lg text-foreground">{specs?.areaValue ? `${specs.areaValue} sq.ft` : basicDetails?.builtUpArea || basicDetails?.carpetArea ? `${basicDetails.builtUpArea || basicDetails.carpetArea} sq.ft` : 'N/A'}</p>
                 </div>
-                
+
                 {specs?.floorNumber !== undefined && (
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Floor</p>
                     <p className="font-bold text-lg text-foreground">{specs.floorNumber} {specs.totalFloors ? `of ${specs.totalFloors}` : ''}</p>
                   </div>
                 )}
-                
+
                 {specs?.bedrooms !== undefined && (
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5"><Bed className="w-3.5 h-3.5" /> Bedrooms</p>
                     <p className="font-bold text-lg text-foreground">{specs.bedrooms}</p>
                   </div>
                 )}
-                
+
                 {specs?.bathrooms !== undefined && (
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5"><Bath className="w-3.5 h-3.5" /> Bathrooms</p>
@@ -405,7 +409,7 @@ export default function PropertyDetailsPage() {
                     <p className="font-bold text-lg text-foreground">{specs.furnishedStatus}</p>
                   </div>
                 )}
-                
+
                 {specs?.ageOfProperty !== undefined && (
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Age</p>
@@ -413,7 +417,7 @@ export default function PropertyDetailsPage() {
                   </div>
                 )}
               </div>
-              
+
               {((property.amenities?.length ?? 0) > 0 || (specs?.amenities?.length ?? 0) > 0) && (
                 <div className="mt-8 pt-8 border-t border-border/50">
                   <p className="text-xs text-muted-foreground uppercase tracking-widest mb-5 font-bold">Premium Amenities</p>
@@ -422,7 +426,7 @@ export default function PropertyDetailsPage() {
                       <span key={idx} className="bg-background hover:bg-muted transition-colors text-foreground text-sm px-4 py-2 rounded-xl border border-border/50 flex items-center gap-2 font-medium shadow-sm">
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" /> {amenity}
                       </span>
-                    ))} 
+                    ))}
                   </div>
                 </div>
               )}
@@ -433,7 +437,7 @@ export default function PropertyDetailsPage() {
               <h3 className="text-2xl font-bold text-foreground mb-8 flex items-center gap-3">
                 <MapPin className="w-6 h-6 text-rose-500 dark:text-rose-400" /> Location & Connectivity
               </h3>
-              
+
               <div className="flex flex-col gap-8">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-background/60 dark:bg-black/20 p-6 rounded-2xl border border-border/50 shadow-sm">
                   <div className="md:col-span-2">
@@ -457,7 +461,7 @@ export default function PropertyDetailsPage() {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Real Interactive Map */}
                 <div className="w-full h-[400px] rounded-2xl border border-border/50 overflow-hidden relative shadow-inner group bg-muted">
                   {(loc?.lat && loc?.lng) || (loc?.latitude && loc?.longitude) ? (
@@ -482,10 +486,10 @@ export default function PropertyDetailsPage() {
                     ></iframe>
                   )}
                   <div className="absolute inset-0 bg-black/5 dark:bg-black/10 pointer-events-none group-hover:bg-transparent transition-colors"></div>
-                  
+
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
-                    <Button 
-                      className="bg-background text-foreground hover:bg-muted h-14 px-8 rounded-full font-bold shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all hover:scale-105 border border-border/50" 
+                    <Button
+                      className="bg-background text-foreground hover:bg-muted h-14 px-8 rounded-full font-bold shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all hover:scale-105 border border-border/50"
                       onClick={() => {
                         const coords = loc?.lat ? `${loc.lat},${loc.lng}` : (loc?.latitude ? `${loc.latitude},${loc.longitude}` : encodeURIComponent(loc?.fullAddress || property.address || property.city || 'India'));
                         window.open(`https://www.google.com/maps/dir/?api=1&destination=${coords}`, '_blank');
@@ -504,7 +508,7 @@ export default function PropertyDetailsPage() {
                 <h3 className="text-2xl font-bold text-foreground mb-8 flex items-center gap-3">
                   <Landmark className="w-6 h-6 text-amber-500" /> Legal & Documents
                 </h3>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {property.legalVerification?.reraNumber && (
                     <div className="p-6 rounded-2xl bg-background/60 dark:bg-black/20 border border-border/50 flex flex-col hover:bg-muted/50 transition-colors shadow-sm">
@@ -548,21 +552,21 @@ export default function PropertyDetailsPage() {
               </div>
             )}
           </div>
-          
+
           {/* Right Column: Order Book & Trading Sidebar */}
           <div className="lg:col-span-4 space-y-8">
-            
+
             {/* Trading Terminal Card (Sticky) */}
             <div className="sticky top-24 space-y-8">
-              
+
               <div className="bg-gradient-to-b from-card/80 to-card/40 dark:from-white/10 dark:to-white/5 border border-border/50 shadow-xl rounded-[2rem] overflow-hidden relative backdrop-blur-2xl">
                 <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary via-indigo-500 to-emerald-500"></div>
-                
+
                 <div className="p-8 border-b border-border/50 relative z-10">
                   <h3 className="font-black text-3xl text-foreground mb-2">Trade {property.symbol}</h3>
                   <p className="text-sm text-muted-foreground font-medium">Fractional units available for primary market</p>
                 </div>
-                
+
                 <div className="p-8 space-y-8 relative z-10">
                   <div className="space-y-5 bg-background/60 dark:bg-black/20 p-5 rounded-2xl border border-border/50 shadow-inner">
                     <div className="flex justify-between items-center py-1">
@@ -582,13 +586,25 @@ export default function PropertyDetailsPage() {
                       <span className="font-mono font-bold text-primary text-xl">{(property.unitsAvailable || 0).toLocaleString()}</span>
                     </div>
                   </div>
-                  
+
                   <div className="pt-2 space-y-4">
-                    <Button className="w-full h-16 text-xl font-bold bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] border border-transparent">
+                    <Button 
+                      onClick={() => {
+                        if (!user) {
+                          toast.error('Please log in to purchase.')
+                          router.push('/login')
+                          return
+                        }
+                        const currentRole = user.role?.toLowerCase() || ''
+                        if (currentRole === 'developer' || currentRole === 'admin') {
+                          toast.error(`Only investor accounts can purchase properties. Your role is: ${user.role}`)
+                          return
+                        }
+                        router.push(`/investor/buy/${property.symbol}`)
+                      }}
+                      className="w-full h-16 text-xl font-bold bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] border border-transparent"
+                    >
                       Buy {property.symbol}
-                    </Button>
-                    <Button variant="outline" className="w-full h-14 text-lg font-bold rounded-2xl transition-all bg-background/50 hover:bg-muted shadow-sm">
-                      Sell {property.symbol}
                     </Button>
                   </div>
                 </div>
@@ -597,7 +613,7 @@ export default function PropertyDetailsPage() {
               {/* Developer / Asset Manager Profile - Redesigned Contact Section */}
               <div className="bg-card/60 dark:bg-card/40 border border-border/50 shadow-xl rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden group transition-all hover:shadow-2xl mt-8">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full group-hover:bg-purple-500/20 transition-all duration-700"></div>
-                
+
                 <div className="flex items-center gap-4 mb-8 relative z-10">
                   <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-background to-muted border border-border/50 flex items-center justify-center shadow-md">
                     <Building2 className="w-8 h-8 text-purple-600 dark:text-purple-400" />
@@ -607,10 +623,10 @@ export default function PropertyDetailsPage() {
                     <h3 className="font-black text-2xl text-foreground leading-tight">{dev?.companyName || 'Milestono Partner'}</h3>
                   </div>
                 </div>
-                  
-                  {/* Detailed Contact List */}
-                  {dev && (
-                    <div className="space-y-1 mb-8 relative z-10">
+
+                {/* Detailed Contact List */}
+                {dev && (
+                  <div className="space-y-1 mb-8 relative z-10">
                     {dev.contactPerson && (
                       <div className="flex items-center gap-4 p-3 rounded-xl hover:bg-muted/50 transition-colors">
                         <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center shrink-0 border border-border/50 shadow-sm">
@@ -655,12 +671,12 @@ export default function PropertyDetailsPage() {
                         </div>
                       </a>
                     )}
-                    </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Action Buttons */}
-                  {dev && (dev.mobile || dev.email) && (
-                    <div className="grid grid-cols-2 gap-3 relative z-10 mb-4">
+                {/* Action Buttons */}
+                {dev && (dev.mobile || dev.email) && (
+                  <div className="grid grid-cols-2 gap-3 relative z-10 mb-4">
                     {dev.mobile && (
                       <Button variant="outline" className="h-12 bg-background/50 hover:bg-muted text-foreground font-bold rounded-xl shadow-sm transition-all" onClick={() => window.open(`tel:${dev.mobile}`)}>
                         <Phone className="w-4 h-4 mr-2 text-primary" /> Call
@@ -671,90 +687,90 @@ export default function PropertyDetailsPage() {
                         <Mail className="w-4 h-4 mr-2 text-indigo-500 dark:text-indigo-400" /> Email
                       </Button>
                     )}
-                    </div>
-                  )}
-
-                  {/* Inline Contact Section */}
-                  <div className="mt-8 pt-8 border-t border-border/50">
-                    <h4 className="font-black text-xl text-foreground mb-4">Direct Inquiry</h4>
-                    {!user ? (
-                      <div className="bg-muted/30 border border-border/50 rounded-2xl p-6 text-center space-y-4">
-                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
-                          <Lock className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                          <h5 className="font-bold text-foreground">Authentication Required</h5>
-                          <p className="text-xs text-muted-foreground mt-1">Please sign in to message the developer.</p>
-                        </div>
-                        <Link href="/login">
-                          <Button className="w-full mt-2 h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md transition-all">
-                            Sign In to Continue
-                          </Button>
-                        </Link>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleInquire} className="space-y-5 bg-background/50 p-5 rounded-2xl border border-border/50">
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex justify-between">
-                            <span>Your Message</span>
-                            {isSubmittingInquiry && <span className="text-primary flex items-center"><Loader2 className="w-3 h-3 animate-spin mr-1"/> Sending</span>}
-                          </label>
-                          <Textarea 
-                            placeholder={`I'm interested in acquiring fractional units in ${property.symbol}...`}
-                            className="min-h-[140px] resize-none rounded-xl bg-background border-border/50 focus:border-primary focus:ring-1 focus:ring-primary text-foreground shadow-inner text-sm"
-                            value={inquiryText}
-                            onChange={e => setInquiryText(e.target.value)}
-                            required
-                            disabled={isSubmittingInquiry}
-                          />
-                        </div>
-                        <Button 
-                          type="submit" 
-                          disabled={isSubmittingInquiry || !inquiryText.trim()}
-                          className="w-full h-14 font-bold rounded-xl text-base bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-600/90 hover:to-indigo-600/90 text-white shadow-md hover:shadow-lg transition-all"
-                        >
-                          {isSubmittingInquiry ? 'Sending...' : 'Send Message'} <Send className="w-4 h-4 ml-2" />
-                        </Button>
-                      </form>
-                    )}
                   </div>
+                )}
+
+                {/* Inline Contact Section */}
+                <div className="mt-8 pt-8 border-t border-border/50">
+                  <h4 className="font-black text-xl text-foreground mb-4">Direct Inquiry</h4>
+                  {!user ? (
+                    <div className="bg-muted/30 border border-border/50 rounded-2xl p-6 text-center space-y-4">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <Lock className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-foreground">Authentication Required</h5>
+                        <p className="text-xs text-muted-foreground mt-1">Please sign in to message the developer.</p>
+                      </div>
+                      <Link href="/login">
+                        <Button className="w-full mt-2 h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md transition-all">
+                          Sign In to Continue
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleInquire} className="space-y-5 bg-background/50 p-5 rounded-2xl border border-border/50">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex justify-between">
+                          <span>Your Message</span>
+                          {isSubmittingInquiry && <span className="text-primary flex items-center"><Loader2 className="w-3 h-3 animate-spin mr-1" /> Sending</span>}
+                        </label>
+                        <Textarea
+                          placeholder={`I'm interested in acquiring fractional units in ${property.symbol}...`}
+                          className="min-h-[140px] resize-none rounded-xl bg-background border-border/50 focus:border-primary focus:ring-1 focus:ring-primary text-foreground shadow-inner text-sm"
+                          value={inquiryText}
+                          onChange={e => setInquiryText(e.target.value)}
+                          required
+                          disabled={isSubmittingInquiry}
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={isSubmittingInquiry || !inquiryText.trim()}
+                        className="w-full h-14 font-bold rounded-xl text-base bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-600/90 hover:to-indigo-600/90 text-white shadow-md hover:shadow-lg transition-all"
+                      >
+                        {isSubmittingInquiry ? 'Sending...' : 'Send Message'} <Send className="w-4 h-4 ml-2" />
+                      </Button>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
       {/* Full Screen Image Overlay */}
       {isOverlayOpen && property.images && property.images.length > 0 && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex items-center justify-center animate-in fade-in duration-300">
-          <button 
+          <button
             className="absolute top-8 right-8 text-gray-400 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-3 rounded-full border border-white/10"
             onClick={() => setIsOverlayOpen(false)}
           >
             <X className="w-6 h-6" />
           </button>
-          
-          <img 
-            src={property.images[currentImageIndex]} 
+
+          <img
+            src={property.images[currentImageIndex]}
             className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10"
             alt={property.name}
           />
-          
+
           {property.images.length > 1 && (
             <>
-              <button 
+              <button
                 className="absolute left-8 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center transition-all backdrop-blur-md hover:scale-110 shadow-xl"
                 onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? property.images!.length - 1 : prev - 1); }}
               >
                 <ChevronLeft className="w-8 h-8" />
               </button>
-              <button 
+              <button
                 className="absolute right-8 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center transition-all backdrop-blur-md hover:scale-110 shadow-xl"
                 onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => (prev + 1) % property.images!.length); }}
               >
                 <ChevronRight className="w-8 h-8" />
               </button>
-              
+
               <div className="absolute bottom-10 inset-x-0 flex justify-center gap-3 bg-black/50 w-max mx-auto px-6 py-4 rounded-full backdrop-blur-xl border border-white/10 shadow-2xl">
                 {property.images.map((_, i) => (
                   <button

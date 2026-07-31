@@ -65,6 +65,10 @@ export async function POST(req: NextRequest) {
       const currentIds: string[] = docSnap.exists ? (docSnap.data()?.propertyIds || []) : []
       if (!currentIds.includes(propertyId)) {
         t.set(docRef, { propertyIds: [...currentIds, propertyId] }, { merge: true })
+        // Increment property watchlistCount
+        const propRef = db.collection('properties').doc(propertyId)
+        const { FieldValue } = await import('firebase-admin/firestore')
+        t.set(propRef, { watchlistCount: FieldValue.increment(1) }, { merge: true })
       }
     })
 
@@ -95,8 +99,14 @@ export async function DELETE(req: NextRequest) {
       const docSnap = await t.get(docRef)
       if (docSnap.exists) {
         const currentIds: string[] = docSnap.data()?.propertyIds || []
-        const newIds = currentIds.filter(id => id !== propertyId)
-        t.set(docRef, { propertyIds: newIds }, { merge: true })
+        if (currentIds.includes(propertyId)) {
+          const newIds = currentIds.filter(id => id !== propertyId)
+          t.set(docRef, { propertyIds: newIds }, { merge: true })
+          // Decrement property watchlistCount
+          const propRef = db.collection('properties').doc(propertyId)
+          const { FieldValue } = await import('firebase-admin/firestore')
+          t.set(propRef, { watchlistCount: FieldValue.increment(-1) }, { merge: true })
+        }
       }
     })
 

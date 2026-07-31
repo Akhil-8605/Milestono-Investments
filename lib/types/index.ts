@@ -72,6 +72,7 @@ export interface RentalData {
 }
 
 export interface Property {
+  priceHistory: any
   specifications?: any
   unitsSold: number
   id: string
@@ -175,7 +176,7 @@ export interface Investment {
 
 // ─── TRANSACTION ─────────────────────────────────────────────────────────────
 export type TransactionType = 'buy' | 'sell' | 'dividend'
-export type TransactionStatus = 'pending' | 'completed' | 'failed'
+export type TransactionStatus = 'pending' | 'pending_admin_approval' | 'pending_neft' | 'completed' | 'failed'
 
 export interface Transaction {
   id: string
@@ -189,8 +190,17 @@ export interface Transaction {
   baseAmount: number
   gst: number
   totalAmount: number
+  paymentMethod?: 'razorpay_direct' | 'neft_with_token'
+  tokenAmountPaid?: number
   razorpayOrderId?: string
   razorpayPaymentId?: string
+  neftDetails?: {
+    utrNumber: string
+    ifsc: string
+    bankName: string
+    proofImages: string[]
+  }
+  verifiedByAdmin?: boolean
   status: TransactionStatus
   timestamp: Date
 }

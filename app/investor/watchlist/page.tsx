@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/shell/app-layout'
+import { useSession } from '@/components/shell/session-context'
 import { Sparkline } from '@/components/ui/sparkline'
 import {
   Star, Trash2, Bell, Plus, BellOff, ChevronUp, ChevronDown,
@@ -34,13 +35,15 @@ export default function WatchlistPage() {
   const [alertLoading, setAlertLoading] = useState(false)
   const [q, setQ] = useState('')
   const [showAlertForm, setShowAlertForm] = useState<string | null>(null)
+  const { user } = useSession()
   const [alertType, setAlertType] = useState<'above' | 'below'>('above')
   const [alertPrice, setAlertPrice] = useState('')
 
   const fetchWatchlist = useCallback(async () => {
+    if (!user?.id) return
     setLoading(true)
     try {
-      const res = await fetch('/api/watchlist')
+      const res = await fetch(`/api/watchlist?userId=${user.id}`)
       const json = await res.json()
       if (json.success) setWatchlist(json.data)
     } catch {
@@ -51,8 +54,9 @@ export default function WatchlistPage() {
   }, [])
 
   const fetchAlerts = useCallback(async () => {
+    if (!user?.id) return
     try {
-      const res = await fetch('/api/alerts')
+      const res = await fetch(`/api/alerts?userId=${user.id}`)
       const json = await res.json()
       if (json.success) setAlerts(json.data)
     } catch {
@@ -61,21 +65,26 @@ export default function WatchlistPage() {
   }, [])
 
   useEffect(() => {
-    fetchWatchlist()
-    fetchAlerts()
-  }, [fetchWatchlist, fetchAlerts])
+    if (user?.id) {
+      fetchWatchlist()
+      fetchAlerts()
+    }
+  }, [fetchWatchlist, fetchAlerts, user?.id])
 
   const removeFromWatchlist = async (propertyId: string) => {
+    if (!user?.id) return
     setWatchlist(prev => prev.filter(p => p.id !== propertyId))
-    await fetch(`/api/watchlist?propertyId=${propertyId}`, { method: 'DELETE' })
+    await fetch(`/api/watchlist?userId=${user.id}&propertyId=${propertyId}`, { method: 'DELETE' })
   }
 
   const removeAlert = async (alertId: string) => {
+    if (!user?.id) return
     setAlerts(prev => prev.filter(a => a.id !== alertId))
-    await fetch(`/api/alerts?alertId=${alertId}`, { method: 'DELETE' })
+    await fetch(`/api/alerts?userId=${user.id}&alertId=${alertId}`, { method: 'DELETE' })
   }
 
   const createAlert = async (propertyId: string) => {
+    if (!user?.id) return
     const price = parseFloat(alertPrice)
     if (!price || price <= 0) return
     setAlertLoading(true)
@@ -83,7 +92,7 @@ export default function WatchlistPage() {
       const res = await fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyId, alertType, targetPrice: price }),
+        body: JSON.stringify({ userId: user.id, propertyId, alertType, targetPrice: price }),
       })
       const json = await res.json()
       if (json.success) {

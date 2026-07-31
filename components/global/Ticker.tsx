@@ -57,7 +57,7 @@ export function Ticker() {
               <span className={up ? 'text-emerald-500 flex items-center gap-0.5' : 'text-rose-500 flex items-center gap-0.5'}>
                 {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 ₹{price.toLocaleString('en-IN')}
-                <span className="ml-1 text-[10px]">({changePct > 0 ? '+' : ''}{changePct}%)</span>
+                <span className="ml-1 text-[10px]">({changePct >= 0 ? '+' : '-'}{changePct.toFixed(2)}%)</span>
               </span>
             </span>
           )

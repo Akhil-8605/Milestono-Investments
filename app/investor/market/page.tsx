@@ -6,9 +6,10 @@ import { Suspense } from 'react'
 import {
   TrendingUp, TrendingDown, Search, SlidersHorizontal,
   Star, Building2, ArrowUpDown, ChevronUp, ChevronDown,
-  MapPin, Percent, BarChart3, Eye,
+  MapPin, Percent, BarChart3, Eye, IndianRupee,
 } from 'lucide-react'
 import { AppLayout } from '@/components/shell/app-layout'
+import { useSession } from '@/components/shell/session-context'
 import { Sparkline } from '@/components/ui/sparkline'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -16,8 +17,8 @@ import { cn } from '@/lib/utils'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
-const CITIES = ['All', 'Mumbai', 'Bangalore', 'Delhi', 'Hyderabad', 'Chennai', 'Lucknow']
-const TYPES = ['All', 'residential', 'commercial', 'industrial']
+const CITIES = ['All', 'Mumbai', 'Delhi']
+const TYPES = ['All', 'Apartment','Villa','Plot','Commercial Office','Retail Shop','Warehouse','Industrial','Land']
 const SORTS = [
   { key: 'marketCap', label: 'Mkt Cap' },
   { key: 'yield', label: 'Yield' },
@@ -67,6 +68,7 @@ function fmtPrice(v: number) {
 function MarketContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useSession()
   const [allProperties, setAllProperties] = useState<PropertyRow[]>([])
   const [properties, setProperties] = useState<PropertyRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,6 +80,12 @@ function MarketContent() {
   const [watchlisted, setWatchlisted] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const [minPrice, setMinPrice] = useState<number | ''>('')
+  const [maxPrice, setMaxPrice] = useState<number | ''>('')
+  const [minYield, setMinYield] = useState<number | ''>('')
+  const [maxYield, setMaxYield] = useState<number | ''>('')
+  const [gainersOnly, setGainersOnly] = useState(false)
 
   useEffect(() => {
     const qQuery = query(collection(db, 'properties'), where('status', '==', 'active'))
@@ -112,22 +120,26 @@ function MarketContent() {
       })
     }
     
+    if (minPrice !== '') filtered = filtered.filter(p => (p.marketData?.currentPrice || p.unitPrice) >= minPrice)
+    if (maxPrice !== '') filtered = filtered.filter(p => (p.marketData?.currentPrice || p.unitPrice) <= maxPrice)
+    if (minYield !== '') filtered = filtered.filter(p => p.expectedYield >= minYield)
+    if (maxYield !== '') filtered = filtered.filter(p => p.expectedYield <= maxYield)
+    if (gainersOnly) filtered = filtered.filter(p => (p.marketData?.changePct || 0) > 0)
+    
     setProperties(filtered)
-  }, [allProperties, city, type, q])
+  }, [allProperties, city, type, q, minPrice, maxPrice, minYield, maxYield, gainersOnly])
 
   // Load watchlist
   useEffect(() => {
-    const user = JSON.parse(sessionStorage.getItem('milestono_user') ?? '{}')
     if (!user?.id) return
     fetch(`/api/watchlist?userId=${user.id}`)
       .then(r => r.json())
       .then(j => {
         if (j.success) setWatchlisted(new Set(j.data.map((w: { id: string }) => w.id)))
       })
-  }, [])
+  }, [user?.id])
 
   async function toggleWatchlist(propertyId: string) {
-    const user = JSON.parse(sessionStorage.getItem('milestono_user') ?? '{}')
     if (!user?.id) { router.push('/auth/login'); return }
 
     const inList = watchlisted.has(propertyId)
@@ -260,12 +272,84 @@ function MarketContent() {
         <div className="flex-1" />
         <button
           onClick={() => setShowFilters(v => !v)}
-          className="flex items-center gap-2 text-sm font-medium text-foreground bg-background border border-border/50 hover:bg-muted px-4 py-1.5 rounded-full transition-colors"
+          className={cn(
+            "flex items-center gap-2 text-sm font-medium px-4 py-1.5 rounded-full transition-colors border",
+            showFilters 
+              ? "bg-primary text-primary-foreground border-primary" 
+              : "text-foreground bg-background border-border/50 hover:bg-muted"
+          )}
         >
           <SlidersHorizontal size={14} />
           Filters
         </button>
       </div>
+
+      {showFilters && (
+        <div className="bg-card/95 backdrop-blur-xl border-b border-border px-6 py-8 shadow-sm animate-in slide-in-from-top-2 duration-300 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5"><IndianRupee size={12}/> Price Range (₹)</h4>
+              <div className="flex items-center gap-3">
+                <Input type="number" placeholder="Min" className="h-10 bg-background" value={minPrice} onChange={e => setMinPrice(e.target.value ? Number(e.target.value) : '')} />
+                <span className="text-muted-foreground">-</span>
+                <Input type="number" placeholder="Max" className="h-10 bg-background" value={maxPrice} onChange={e => setMaxPrice(e.target.value ? Number(e.target.value) : '')} />
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5"><Percent size={12}/> Rental Yield (%)</h4>
+              <div className="flex items-center gap-3">
+                <Input type="number" placeholder="Min" className="h-10 bg-background" value={minYield} onChange={e => setMinYield(e.target.value ? Number(e.target.value) : '')} />
+                <span className="text-muted-foreground">-</span>
+                <Input type="number" placeholder="Max" className="h-10 bg-background" value={maxYield} onChange={e => setMaxYield(e.target.value ? Number(e.target.value) : '')} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+               <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5"><ArrowUpDown size={12}/> Sort By</h4>
+               <select 
+                 className="w-full h-10 bg-background border border-border/50 hover:border-border rounded-xl px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all"
+                 value={`${sort}-${sortDir}`}
+                 onChange={(e) => {
+                   const [k, d] = e.target.value.split('-');
+                   setSort(k);
+                   setSortDir(d as 'asc'|'desc');
+                 }}
+               >
+                 <option value="marketCap-desc">Market Cap: High to Low</option>
+                 <option value="yield-desc">Yield: High to Low</option>
+                 <option value="price-asc">Price: Low to High</option>
+                 <option value="price-desc">Price: High to Low</option>
+                 <option value="change-desc">Change %: Gainers</option>
+                 <option value="change-asc">Change %: Losers</option>
+               </select>
+            </div>
+
+            <div className="space-y-4">
+               <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5"><TrendingUp size={12}/> Quick Actions</h4>
+               <div className="flex flex-wrap items-center gap-3">
+                 <button 
+                   onClick={() => setGainersOnly(!gainersOnly)} 
+                   className={cn(
+                     'px-4 py-2.5 rounded-xl text-xs font-bold transition-all border flex-1 text-center', 
+                     gainersOnly ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 shadow-sm' : 'bg-background border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                   )}
+                 >
+                   Gainers Only
+                 </button>
+                 <button 
+                   onClick={() => {
+                     setMinPrice(''); setMaxPrice(''); setMinYield(''); setMaxYield(''); setGainersOnly(false); setSort('marketCap'); setSortDir('desc');
+                   }} 
+                   className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground flex-1 text-center"
+                 >
+                   Clear All
+                 </button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
