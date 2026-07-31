@@ -3,7 +3,7 @@
  * Swap out the exported collections with Firebase/Firestore calls in production.
  */
 
-import { Property, Investment, Transaction, PriceAlert, User } from '@/lib/types'
+import { Property, Investment, Transaction, PriceAlert, BaseUser, Investor, Developer } from '@/lib/types'
 import { generatePriceHistory } from '@/lib/store/seed'
 
 // ─── PROPERTIES ────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ export const transactionsStore: Map<string, Transaction> = new Map()
 export const alertsStore: Map<string, PriceAlert> = new Map()
 
 // ─── USERS ─────────────────────────────────────────────────────────────────
-export const usersStore: Map<string, User> = new Map()
+export const usersStore: Map<string, BaseUser | Investor | Developer> = new Map()
 
 // ─── WATCHLISTS ────────────────────────────────────────────────────────────
 export const watchlistStore: Map<string, string[]> = new Map() // userId → propertyIds[]
@@ -44,6 +44,7 @@ function seedProperties() {
       pincode: '560066',
       type: 'residential',
       totalUnits: 500,
+        unitsSold: 0,
       unitsAvailable: 183,
       unitPrice: 125000,
       rentalData: { expectedYield: 9.2, occupancyRate: 94, rentalIncome: 48000000 },
@@ -54,7 +55,8 @@ function seedProperties() {
       amenities: ['Swimming Pool', 'Gym', 'Clubhouse', 'Security', 'Power Backup'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-1',
+      viewCount: 0,
+      developerId: 'developer-1',
     },
     {
       name: 'Godrej BKC Heights',
@@ -66,6 +68,7 @@ function seedProperties() {
       pincode: '400051',
       type: 'commercial',
       totalUnits: 800,
+        unitsSold: 0,
       unitsAvailable: 312,
       unitPrice: 285000,
       rentalData: { expectedYield: 7.8, occupancyRate: 97, rentalIncome: 182400000 },
@@ -76,7 +79,8 @@ function seedProperties() {
       amenities: ['24/7 Security', 'Conference Rooms', 'Cafeteria', 'EV Charging', 'HVAC'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-1',
+      viewCount: 0,
+      developerId: 'developer-1',
     },
     {
       name: 'DLF Capital Greens',
@@ -88,6 +92,7 @@ function seedProperties() {
       pincode: '110015',
       type: 'residential',
       totalUnits: 1200,
+        unitsSold: 0,
       unitsAvailable: 445,
       unitPrice: 175000,
       rentalData: { expectedYield: 8.4, occupancyRate: 91, rentalIncome: 176400000 },
@@ -98,7 +103,8 @@ function seedProperties() {
       amenities: ['Olympic Pool', 'Spa', 'Tennis Court', 'Jogging Track', 'Kids Zone'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-2',
+      viewCount: 0,
+      developerId: 'developer-2',
     },
     {
       name: 'Embassy Tech Village',
@@ -110,6 +116,7 @@ function seedProperties() {
       pincode: '560071',
       type: 'commercial',
       totalUnits: 2000,
+        unitsSold: 0,
       unitsAvailable: 890,
       unitPrice: 98000,
       rentalData: { expectedYield: 11.2, occupancyRate: 99, rentalIncome: 219000000 },
@@ -120,7 +127,8 @@ function seedProperties() {
       amenities: ['Helipad', 'Hotel', 'Schools', 'Hospital', 'Retail'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-2',
+      viewCount: 0,
+      developerId: 'developer-2',
     },
     {
       name: 'Sobha Dream Acres',
@@ -132,6 +140,7 @@ function seedProperties() {
       pincode: '560087',
       type: 'residential',
       totalUnits: 3000,
+        unitsSold: 0,
       unitsAvailable: 1230,
       unitPrice: 68500,
       rentalData: { expectedYield: 8.9, occupancyRate: 88, rentalIncome: 181800000 },
@@ -142,7 +151,8 @@ function seedProperties() {
       amenities: ['Mall', 'Schools', 'Hospital', '5 Clubs', 'Sports Academy'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-1',
+      viewCount: 0,
+      developerId: 'developer-1',
     },
     {
       name: 'Phoenix Palassio',
@@ -154,6 +164,7 @@ function seedProperties() {
       pincode: '226012',
       type: 'commercial',
       totalUnits: 600,
+        unitsSold: 0,
       unitsAvailable: 218,
       unitPrice: 55000,
       rentalData: { expectedYield: 10.5, occupancyRate: 96, rentalIncome: 34650000 },
@@ -164,7 +175,8 @@ function seedProperties() {
       amenities: ['Multiplex', 'Food Court', 'Gaming Zone', 'Luxury Brands', 'Valet'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-3',
+      viewCount: 0,
+      developerId: 'developer-3',
     },
     {
       name: 'Hiranandani Business Park',
@@ -176,6 +188,7 @@ function seedProperties() {
       pincode: '400076',
       type: 'commercial',
       totalUnits: 750,
+        unitsSold: 0,
       unitsAvailable: 225,
       unitPrice: 320000,
       rentalData: { expectedYield: 8.1, occupancyRate: 98, rentalIncome: 243000000 },
@@ -186,7 +199,8 @@ function seedProperties() {
       amenities: ['Business Centre', 'Fine Dining', 'Retail', 'Bank', 'Clinic'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-2',
+      viewCount: 0,
+      developerId: 'developer-2',
     },
     {
       name: 'Lodha Palava City',
@@ -198,6 +212,7 @@ function seedProperties() {
       pincode: '421204',
       type: 'residential',
       totalUnits: 5000,
+        unitsSold: 0,
       unitsAvailable: 2100,
       unitPrice: 42000,
       rentalData: { expectedYield: 7.6, occupancyRate: 85, rentalIncome: 159600000 },
@@ -208,7 +223,8 @@ function seedProperties() {
       amenities: ['International School', 'Mall', 'Hospital', 'Sports Complex', 'Tech Hub'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-3',
+      viewCount: 0,
+      developerId: 'developer-3',
     },
     {
       name: 'Tata Housing Serein',
@@ -220,6 +236,7 @@ function seedProperties() {
       pincode: '400610',
       type: 'residential',
       totalUnits: 400,
+        unitsSold: 0,
       unitsAvailable: 142,
       unitPrice: 195000,
       rentalData: { expectedYield: 9.7, occupancyRate: 93, rentalIncome: 75920000 },
@@ -230,7 +247,8 @@ function seedProperties() {
       amenities: ['Infinity Pool', 'Sky Lounge', 'Zen Garden', 'Concierge', 'EV Charging'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-1',
+      viewCount: 0,
+      developerId: 'developer-1',
     },
     {
       name: 'Brigade Horizon',
@@ -242,6 +260,7 @@ function seedProperties() {
       pincode: '500081',
       type: 'commercial',
       totalUnits: 900,
+        unitsSold: 0,
       unitsAvailable: 387,
       unitPrice: 88000,
       rentalData: { expectedYield: 10.8, occupancyRate: 95, rentalIncome: 84240000 },
@@ -252,7 +271,8 @@ function seedProperties() {
       amenities: ['Data Centre Ready', 'Auditorium', 'Food Court', 'ATM', 'Gym'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-2',
+      viewCount: 0,
+      developerId: 'developer-2',
     },
     {
       name: 'Mahindra World City',
@@ -264,6 +284,7 @@ function seedProperties() {
       pincode: '603004',
       type: 'industrial',
       totalUnits: 1500,
+        unitsSold: 0,
       unitsAvailable: 678,
       unitPrice: 35000,
       rentalData: { expectedYield: 12.4, occupancyRate: 92, rentalIncome: 60900000 },
@@ -274,7 +295,8 @@ function seedProperties() {
       amenities: ['SEZ Zone', 'Port Connectivity', 'Rail Link', 'Township', 'Utilities'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-3',
+      viewCount: 0,
+      developerId: 'developer-3',
     },
     {
       name: 'Navi Mumbai SEZ',
@@ -286,6 +308,7 @@ function seedProperties() {
       pincode: '410206',
       type: 'industrial',
       totalUnits: 2500,
+        unitsSold: 0,
       unitsAvailable: 1100,
       unitPrice: 48500,
       rentalData: { expectedYield: 13.1, occupancyRate: 89, rentalIncome: 158200000 },
@@ -296,7 +319,8 @@ function seedProperties() {
       amenities: ['SEZ Benefits', 'Airport Proximity', 'Metro Connectivity', 'Warehousing', 'Cold Chain'],
       images: [],
       documents: { termsUrl: '/docs/terms.pdf', prospectusUrl: '/docs/prospectus.pdf', riskDisclosureUrl: '/docs/risk.pdf' },
-      createdBy: 'developer-3',
+      viewCount: 0,
+      developerId: 'developer-3',
     },
   ]
 

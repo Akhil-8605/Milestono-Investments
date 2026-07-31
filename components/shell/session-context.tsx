@@ -1,11 +1,13 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import type { User } from '@/lib/types'
+import type { BaseUser, Investor, Developer } from '@/lib/types'
+
+type AnyUser = BaseUser | Investor | Developer
 
 interface SessionContextValue {
-  user: User | null
-  setUser: (user: User | null) => void
+  user: AnyUser | null
+  setUser: (user: AnyUser | null) => void
   loading: boolean
   logout: () => void
 }
@@ -18,12 +20,13 @@ const SessionContext = createContext<SessionContextValue>({
 })
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<User | null>(null)
+  const [user, setUserState] = useState<AnyUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     // Hydrate from sessionStorage on mount
     try {
+      const token = sessionStorage.getItem('milestono_investments_token')
       const raw = sessionStorage.getItem('milestono_user')
       if (raw) setUserState(JSON.parse(raw))
     } catch {
@@ -32,7 +35,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }, [])
 
-  const setUser = (u: User | null) => {
+  const setUser = (u: AnyUser | null) => {
     setUserState(u)
     if (u) {
       sessionStorage.setItem('milestono_user', JSON.stringify(u))

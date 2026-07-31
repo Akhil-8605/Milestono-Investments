@@ -1,19 +1,29 @@
 // ─── USER & AUTH ────────────────────────────────────────────────────────────
 export type UserRole = 'investor' | 'developer' | 'admin'
 
-export interface User {
+export interface BaseUser {
   id: string
   email: string
   name: string
   phone?: string
   role: UserRole
-  premium: boolean
-  subscriptionTier?: 'free' | 'pro' | 'enterprise'
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Investor extends BaseUser {
+  role: 'investor'
   kycVerified: boolean
   portfolio?: Portfolio
   watchlist?: string[]
-  createdAt: Date
-  updatedAt: Date
+}
+
+export interface Developer extends BaseUser {
+  role: 'developer'
+  companyName: string
+  developerId: string // Ticker for developer
+  website?: string
+  verified: boolean
 }
 
 export interface Portfolio {
@@ -28,13 +38,13 @@ export interface Portfolio {
 export interface LoginResponse {
   token: string
   firebaseToken?: string
-  user: User
+  user: Investor | Developer | BaseUser // Admin falls back to BaseUser
   expiresAt: number
 }
 
 // ─── PROPERTY ───────────────────────────────────────────────────────────────
 export type PropertyType = 'residential' | 'commercial' | 'industrial' | 'mixed'
-export type PropertyStatus = 'active' | 'inactive' | 'delisted' | 'coming_soon'
+export type PropertyStatus = 'active' | 'inactive' | 'delisted' | 'coming_soon' | 'pending_approval' | 'rejected' | 'on_hold'
 
 export interface PricePoint {
   date: Date
@@ -62,13 +72,15 @@ export interface RentalData {
 }
 
 export interface Property {
+  specifications?: any
+  unitsSold: number
   id: string
   symbol: string              // e.g. "PRSN" — 4-letter stock-style ticker
   name: string
   type: PropertyType
   description?: string
   amenities?: string[]
-  location: string
+  location: any
   address: string
   city: string
   state: string
@@ -87,10 +99,57 @@ export interface Property {
     riskDisclosureUrl?: string
   }
   images?: string[]
-  createdBy: string
+  developerId: string         // Reference to developer
+  basicDetails?: any
+  investmentInfo?: any
+  developerInfo?: any
+  legalVerification?: any
+  media?: any
+  viewCount: number
   listedAt: Date
   lastUpdated: Date
 }
+
+// ─── APPRECIATION & PRICING ────────────────────────────────────────────────
+export interface AppreciationSchedule {
+  id: string
+  propertyId: string
+  percentage: number
+  targetDate: Date
+  basePrice: number
+  targetPrice: number
+  status: 'pending' | 'completed'
+  createdAt: Date
+  createdBy: string // Admin ID
+}
+
+// ─── INQUIRIES ─────────────────────────────────────────────────────────────
+export interface Inquiry {
+  id: string
+  propertyId: string
+  propertyTickerId: string
+  developerId: string
+  investorId: string
+  investorName?: string
+  message: string
+  status: 'new' | 'read' | 'replied'
+  createdAt: Date
+}
+
+// ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
+export type NotificationType = 'watchlist_add' | 'inquiry_received' | 'inquiry_sent' | 'system'
+
+export interface AppNotification {
+  id: string
+  userId: string             // Recipient
+  type: NotificationType
+  title: string
+  message: string
+  read: boolean
+  data?: any                 // For routing (e.g. { propertyTickerId: 'PRSN' })
+  createdAt: Date
+}
+
 
 // ─── INVESTMENT ─────────────────────────────────────────────────────────────
 export type InvestmentStatus = 'active' | 'sold' | 'stopped'

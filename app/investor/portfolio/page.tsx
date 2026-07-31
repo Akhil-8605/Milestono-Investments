@@ -174,7 +174,7 @@ export default function PortfolioPage() {
                     <tr
                       key={h.id}
                       className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/investor/properties/${h.propertyId}`)}
+                      onClick={() => router.push(`/properties/${h.propertyId}`)}
                     >
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export default function PortfolioPage() {
                       <td className="py-3.5 px-4 text-right text-xs font-semibold text-gain">{h.yield?.toFixed(1)}%</td>
                       <td className="py-3.5 px-4 text-right">
                         <button
-                          onClick={e => { e.stopPropagation(); router.push(`/investor/properties/${h.propertyId}`) }}
+                          onClick={e => { e.stopPropagation(); router.push(`/properties/${h.propertyId}`) }}
                           className="text-[10px] px-2.5 py-1 rounded bg-primary/20 hover:bg-blue-600 text-blue-500 hover:text-white border border-primary/20 hover:border-primary/60 transition-all"
                         >
                           Trade

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, BarChart3, Briefcase, Bell, BookOpen,
   Building2, PlusCircle, Settings, LogOut, TrendingUp,
-  Star, Receipt, ChevronRight,
+  Star, Receipt, ChevronRight, User, FileCheck, Users, UserCog
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +24,7 @@ const INVESTOR_NAV: NavItem[] = [
   { label: 'Orders', href: '/investor/orders', icon: Receipt },
   { label: 'Alerts', href: '/investor/alerts', icon: Bell },
   { label: 'Reports', href: '/investor/reports', icon: BarChart3 },
+  { label: 'Profile', href: '/investor/profile', icon: User },
 ]
 
 const DEVELOPER_NAV: NavItem[] = [
@@ -32,11 +33,20 @@ const DEVELOPER_NAV: NavItem[] = [
   { label: 'List Property', href: '/developer/list', icon: PlusCircle },
   { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
   { label: 'Transactions', href: '/developer/transactions', icon: Receipt },
+  { label: 'Profile', href: '/developer/profile', icon: User },
 ]
 
 const BOTTOM_NAV: NavItem[] = [
   { label: 'Knowledge', href: '/learn', icon: BookOpen },
   { label: 'Settings', href: '/settings', icon: Settings },
+]
+
+const ADMIN_NAV: NavItem[] = [
+  { label: 'New Submissions', href: '/admin/submissions', icon: FileCheck },
+  { label: 'All Properties', href: '/admin/properties', icon: Building2 },
+  { label: 'Investors', href: '/admin/investors', icon: Users },
+  { label: 'Developers', href: '/admin/developers', icon: UserCog },
+  { label: 'Notifications', href: '/admin/notifications', icon: Bell },
 ]
 
 interface SidebarProps {
@@ -50,7 +60,7 @@ interface SidebarProps {
 
 export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen }: SidebarProps) {
   const pathname = usePathname()
-  const navItems = role === 'developer' ? DEVELOPER_NAV : INVESTOR_NAV
+  const navItems = role === 'admin' ? ADMIN_NAV : role === 'developer' ? DEVELOPER_NAV : INVESTOR_NAV
 
   return (
     <>
@@ -117,16 +127,20 @@ export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen
 
       {/* Bottom nav */}
       <div className="border-t border-border px-3 py-3 space-y-0.5">
-        {BOTTOM_NAV.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-          >
-            <Icon size={14} />
-            {label}
-          </Link>
-        ))}
+        <Link
+          href={role === 'developer' ? '/developer/learn' : role === 'admin' ? '/admin/dashboard' : '/investor/learn'}
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+        >
+          <BookOpen size={14} />
+          Knowledge
+        </Link>
+        <Link
+          href={role === 'developer' ? '/developer/settings' : role === 'admin' ? '/admin/dashboard' : '/investor/settings'}
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+        >
+          <Settings size={14} />
+          Settings
+        </Link>
         <button
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-loss hover:bg-loss/10 transition-all"

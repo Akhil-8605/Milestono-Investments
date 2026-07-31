@@ -1,12 +1,19 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, TrendingUp, Shield, Percent, ArrowRight, BarChart3, Users, ChevronRight } from 'lucide-react'
+import { Ticker } from '@/components/global/Ticker'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { Property } from '@/lib/types'
 
-const TICKER: any[] = []
-
-const STATS: any[] = []
+const STATS: any[] = [
+  { value: '₹140Cr+', label: 'Assets Under Management' },
+  { value: '12,450', label: 'Active Investors' },
+  { value: '48', label: 'Grade A Properties' },
+  { value: '11.4%', label: 'Avg. Annual Yield' }
+]
 
 const FEATURES = [
   {
@@ -53,12 +60,14 @@ const FEATURES = [
   },
 ]
 
-const PROPERTIES: any[] = []
-
 export default function HomePage() {
   const router = useRouter()
+  const [properties, setProperties] = useState<Property[]>([])
 
   useEffect(() => {
+    // Passive Market Sync (Resolves Appreciations)
+    fetch('/api/market/sync', { method: 'POST' }).catch(() => {})
+
     const raw = sessionStorage.getItem('milestono_user')
     if (raw) {
       try {
@@ -66,17 +75,27 @@ export default function HomePage() {
         const routes: Record<string, string> = {
           investor: '/investor/dashboard',
           developer: '/developer/dashboard',
-          admin: '/admin-dashboard',
+          admin: '/admin/properties',
         }
         router.replace(routes[user.role] ?? '/auth/login')
       } catch {
         sessionStorage.clear()
       }
     }
+    const q = query(collection(db, 'properties'), where('status', '==', 'active'))
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const activeProps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Property[]
+      setProperties(activeProps.slice(0, 5)) // Show top 5 on landing page
+    }, (error) => {
+      console.error('[Landing] Realtime Error:', error)
+    })
+    
+    return () => unsubscribe()
   }, [router])
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
+      <Ticker />
       {/* Nav */}
       <header className="border-b border-border bg-sidebar/90 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
@@ -102,19 +121,6 @@ export default function HomePage() {
           </button>
         </div>
       </header>
-
-      {/* Ticker */}
-      <div className="bg-sidebar border-b border-border py-2 overflow-hidden">
-        <div className="ticker-animate flex items-center gap-8 w-max">
-          {[...TICKER, ...TICKER].map((t, i) => (
-            <span key={i} className="flex items-center gap-2 text-[11px] shrink-0">
-              <span className="text-muted-foreground font-mono">{t.sym}</span>
-              <span className="text-foreground font-mono">{t.price}</span>
-              <span className={t.up ? 'text-gain' : 'text-loss'}>{t.chg}</span>
-            </span>
-          ))}
-        </div>
-      </div>
 
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-6 pt-20 pb-16 text-center">
@@ -184,32 +190,46 @@ export default function HomePage() {
               </tr>
             </thead>
             <tbody>
-              {PROPERTIES.map(p => (
-                <tr
-                  key={p.sym}
-                  className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
-                  onClick={() => router.push('/auth/login')}
-                >
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <span className="text-blue-500 text-[9px] font-bold">{p.sym.slice(0, 2)}</span>
-                      </div>
-                      <span className="text-foreground text-xs font-bold">{p.sym}</span>
-                    </div>
+              {properties.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
+                    Waiting for market data...
                   </td>
-                  <td className="py-3.5 px-4 text-xs text-muted-foreground">{p.name}</td>
-                  <td className="py-3.5 px-4 text-right text-xs text-muted-foreground">{p.city}</td>
-                  <td className="py-3.5 px-4 text-right">
-                    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${p.type === 'Commercial' ? 'bg-primary/20 text-blue-500' : p.type === 'Industrial' ? 'bg-purple-500/10 text-purple-500' : 'bg-green-500/10 text-green-500'}`}>
-                      {p.type.slice(0, 3)}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right text-xs font-mono text-foreground">{p.price}</td>
-                  <td className="py-3.5 px-4 text-right text-xs font-semibold text-gain">{p.yield}</td>
-                  <td className={`py-3.5 px-4 text-right text-xs font-bold ${p.up ? 'text-gain' : 'text-loss'}`}>{p.chg}</td>
                 </tr>
-              ))}
+              ) : properties.map(p => {
+                const price = p.marketData?.currentPrice || p.unitPrice || 0
+                const changePct = p.marketData?.changePct || 0
+                const up = changePct >= 0
+                
+                return (
+                  <tr
+                    key={p.symbol}
+                    className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
+                    onClick={() => router.push('/auth/login')}
+                  >
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <span className="text-blue-500 text-[9px] font-bold">{p.symbol.slice(0, 2)}</span>
+                        </div>
+                        <span className="text-foreground text-xs font-bold">{p.symbol}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-xs text-muted-foreground">{p.name}</td>
+                    <td className="py-3.5 px-4 text-right text-xs text-muted-foreground">{p.city}</td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary`}>
+                        {p.type?.slice(0, 3)}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-xs font-mono text-foreground">₹{price.toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-right text-xs font-semibold text-gain">{p.expectedYield}%</td>
+                    <td className={`py-3.5 px-4 text-right text-xs font-bold ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {up ? '+' : ''}{changePct}%
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
           <div className="px-4 py-3 border-t border-border text-center">

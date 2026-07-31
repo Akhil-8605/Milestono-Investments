@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/shell/app-layout'
 import { Sparkline } from '@/components/ui/sparkline'
@@ -134,8 +134,8 @@ export default function WatchlistPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {['', 'Property', 'LTP', 'Change', '7D Chart', 'Yield', 'Occupancy', 'Alert', ''].map(h => (
-                  <th key={h} className={cn('py-2.5 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider', h === 'Property' || h === '' ? 'text-left' : 'text-right')}>{h}</th>
+                {['', 'Property', 'LTP', 'Change', '7D Chart', 'Yield', 'Occupancy', 'Alert', ' '].map((h, i) => (
+                  <th key={i} className={cn('py-2.5 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider', h === 'Property' || h.trim() === '' ? 'text-left' : 'text-right')}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -169,11 +169,10 @@ export default function WatchlistPage() {
                 const hasAlert = alerts.some(a => a.propertyId === p.id)
 
                 return (
-                  <>
+                  <Fragment key={p.id}>
                     <tr
-                      key={p.id}
                       className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/investor/properties/${p.id}`)}
+                      onClick={() => router.push(`/properties/${p.id}`)}
                     >
                       <td className="px-4 py-3.5">
                         <button
@@ -277,7 +276,7 @@ export default function WatchlistPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -293,8 +292,8 @@ export default function WatchlistPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {['Symbol', 'Condition', 'Target Price', 'Status', 'Created', ''].map(h => (
-                    <th key={h} className={cn('py-2.5 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider', h === 'Symbol' ? 'text-left' : 'text-right')}>{h}</th>
+                  {['Symbol', 'Condition', 'Target Price', 'Status', 'Created', ''].map((h, i) => (
+                    <th key={i} className={cn('py-2.5 px-4 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider', h === 'Symbol' ? 'text-left' : 'text-right')}>{h}</th>
                   ))}
                 </tr>
               </thead>

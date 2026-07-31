@@ -1,50 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
-import https from 'https'
-
-const MILESTONO_API = process.env.BASE_URL || 'https://api.milestono.com:6005'
+import ImageKit from 'imagekit'
 
 export async function POST(req: NextRequest) {
   try {
+    if (
+      !process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY ||
+      !process.env.IMAGEKIT_PRIVATE_KEY ||
+      !process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT
+    ) {
+      console.warn('ImageKit credentials missing.')
+      return NextResponse.json({ success: false, error: 'Upload configuration missing' }, { status: 500 })
+    }
+
+    const imagekit = new ImageKit({
+      publicKey: process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY,
+      privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+      urlEndpoint: process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT,
+    })
+
     const formData = await req.formData()
-    const image = formData.get('image')
+    const image = formData.get('image') as File | null
+    const folder = (formData.get('folder') as string) || '/milestono_profiles'
 
     if (!image) {
       return NextResponse.json({ success: false, error: 'No image provided' }, { status: 400 })
     }
 
-    // Forward the formData to the Node.js backend
-    // Since native fetch in Next.js doesn't easily accept custom https.Agents for self-signed certs in newer nodes,
-    // we fallback to node-fetch or we simply pass it. In Next.js 14+ fetch natively respects NODE_TLS_REJECT_UNAUTHORIZED
-    // which is the easiest bypass.
-    
-    const externalRes = await fetch(`${MILESTONO_API}/api/investors/upload`, {
-      method: 'POST',
-      body: formData,
-      // @ts-ignore - Next.js extended fetch options
-      dispatcher: typeof process !== 'undefined' && process.env.NODE_ENV !== 'production' 
-        ? new (require('undici').Agent)({ connect: { rejectUnauthorized: false } }) 
-        : undefined
+    // Convert File to Buffer
+    const arrayBuffer = await image.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // Upload to ImageKit
+    const response = await imagekit.upload({
+      file: buffer,
+      fileName: image.name || `img_${Date.now()}`,
+      folder,
+      useUniqueFileName: true
     })
 
-    if (!externalRes.ok) {
-      const errorData = await externalRes.json().catch(() => ({}))
-      return NextResponse.json(
-        { success: false, error: errorData.error || 'Failed to upload image' },
-        { status: externalRes.status }
-      )
-    }
-
-    const data = await externalRes.json()
-    
-    // Convert relative URL from Node to absolute URL if needed, or keep it relative
-    // Node backend returns `/uploads/profiles/...`
-    const absoluteUrl = `${MILESTONO_API}${data.url}`
-
-    return NextResponse.json({ success: true, url: absoluteUrl })
-  } catch (error) {
-    console.error('[Upload Proxy] Error:', error)
+    return NextResponse.json({ success: true, url: response.url })
+  } catch (error: any) {
+    console.error('[ImageKit Upload Error]:', error)
     return NextResponse.json(
-      { success: false, error: 'Upload service unavailable' },
+      { success: false, error: error.message || 'Upload service unavailable' },
       { status: 500 }
     )
   }

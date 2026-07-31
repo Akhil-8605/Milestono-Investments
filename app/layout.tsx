@@ -5,6 +5,8 @@ import './globals.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SessionProvider } from '@/components/shell/session-context'
 import { ThemeProvider } from '@/components/shell/theme-provider'
+import { Toaster } from '@/components/shell/toast-provider'
+import { Ticker } from '@/components/global/Ticker'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -18,7 +20,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: { default: 'Milestono Investors', template: '%s | Milestono Investors' },
+  title: { default: 'Milestono Investments', template: '%s | Milestono Investments' },
   description: 'India\'s premier fractional real estate exchange — invest in premium properties like stocks.',
   keywords: ['real estate', 'fractional investment', 'property exchange', 'milestono'],
   generator: 'Milestono Team',
@@ -42,11 +44,13 @@ export default function RootLayout({
         <ThemeProvider>
           <SessionProvider>
             <TooltipProvider>
+              {/* <Ticker /> */}
               {children}
             </TooltipProvider>
           </SessionProvider>
         </ThemeProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <Toaster />
+        {process.env.NODE_ENV === 'production' && process.env.VERCEL === '1' && <Analytics />}
       </body>
     </html>
   )

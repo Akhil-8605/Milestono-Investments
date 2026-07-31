@@ -1,46 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ensureSeeded, alertsStore, propertiesStore } from '@/lib/store/data'
 import { ApiResponse, PriceAlert } from '@/lib/types'
 
 function resolveUserId(req: NextRequest, body?: Record<string, any>): string {
   const param = req.nextUrl.searchParams.get('userId') ?? body?.userId
   if (param) return param
-  const token = req.cookies.get('milestono_token')?.value ?? ''
+  const token = req.cookies.get('milestono_investments_token')?.value ?? ''
   return `user-${token.split('_')[1]?.slice(0, 8) ?? 'demo'}`
 }
 
 // GET /api/alerts
 export async function GET(req: NextRequest) {
   try {
-    ensureSeeded()
+    const { db } = await import('@/lib/firebase-admin')
+    if (!db) return NextResponse.json({ success: false, error: 'Firebase not configured' }, { status: 500 })
+
     const userId = resolveUserId(req)
 
-    const alerts = Array.from(alertsStore.values())
-      .filter(a => a.userId === userId)
-      .map(alert => {
-        const property = propertiesStore.get(alert.propertyId)
-        const currentPrice = property?.marketData.currentPrice
+    const snapshot = await db.collection('alerts')
+      .where('userId', '==', userId)
+      .get()
 
-        // Auto-trigger check
-        if (!alert.triggered && currentPrice) {
-          if (
-            (alert.alertType === 'above' && currentPrice >= alert.targetPrice) ||
-            (alert.alertType === 'below' && currentPrice <= alert.targetPrice)
-          ) {
-            alert.triggered = true
-            alert.triggeredAt = new Date()
-            alertsStore.set(alert.id, alert)
-          }
-        }
+    const rawAlerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PriceAlert))
 
-        return {
-          ...alert,
-          symbol: (property as any)?.symbol ?? alert.propertySymbol,
-          name: property?.name ?? alert.propertyName,
-          currentPrice,
+    const alerts = await Promise.all(rawAlerts.map(async alert => {
+      const pSnap = await db.collection('properties').doc(alert.propertyId).get()
+      const property = pSnap.exists ? pSnap.data() as any : null
+      const currentPrice = property?.marketData?.currentPrice
+
+      // Auto-trigger check
+      if (!alert.triggered && currentPrice) {
+        if (
+          (alert.alertType === 'above' && currentPrice >= alert.targetPrice) ||
+          (alert.alertType === 'below' && currentPrice <= alert.targetPrice)
+        ) {
+          alert.triggered = true
+          alert.triggeredAt = new Date()
+          await db.collection('alerts').doc(alert.id).update({
+            triggered: true,
+            triggeredAt: alert.triggeredAt
+          })
         }
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      }
+
+      return {
+        ...alert,
+        symbol: property?.symbol ?? alert.propertySymbol,
+        name: property?.name ?? alert.propertyName,
+        currentPrice,
+      }
+    }))
+
+    alerts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
     return NextResponse.json<ApiResponse<typeof alerts>>({ success: true, data: alerts })
   } catch (err) {
@@ -52,7 +62,9 @@ export async function GET(req: NextRequest) {
 // POST /api/alerts
 export async function POST(req: NextRequest) {
   try {
-    ensureSeeded()
+    const { db } = await import('@/lib/firebase-admin')
+    if (!db) return NextResponse.json({ success: false, error: 'Firebase not configured' }, { status: 500 })
+
     const body = await req.json()
     const userId = resolveUserId(req, body)
     const { propertyId, alertType, targetPrice } = body
@@ -65,12 +77,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json<ApiResponse>({ success: false, error: 'alertType must be "above" or "below"' }, { status: 400 })
     }
 
-    const property = propertiesStore.get(propertyId)
-    if (!property) return NextResponse.json<ApiResponse>({ success: false, error: 'Property not found' }, { status: 404 })
+    const pSnap = await db.collection('properties').doc(propertyId).get()
+    if (!pSnap.exists) return NextResponse.json<ApiResponse>({ success: false, error: 'Property not found' }, { status: 404 })
+    const property = pSnap.data() as any
 
-    const id = `alert-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const docRef = db.collection('alerts').doc()
     const alert: PriceAlert = {
-      id,
+      id: docRef.id,
       userId,
       propertyId,
       propertyName: property.name,
@@ -81,7 +94,8 @@ export async function POST(req: NextRequest) {
       createdAt: new Date(),
     }
 
-    alertsStore.set(id, alert)
+    await docRef.set(alert)
+
     return NextResponse.json<ApiResponse<PriceAlert & { symbol: string; name: string }>>({
       success: true,
       data: { ...alert, symbol: property.symbol, name: property.name },
@@ -95,9 +109,14 @@ export async function POST(req: NextRequest) {
 // DELETE /api/alerts?alertId=xxx
 export async function DELETE(req: NextRequest) {
   try {
+    const { db } = await import('@/lib/firebase-admin')
+    if (!db) return NextResponse.json({ success: false, error: 'Firebase not configured' }, { status: 500 })
+
     const alertId = req.nextUrl.searchParams.get('alertId') ?? req.nextUrl.searchParams.get('id')
     if (!alertId) return NextResponse.json<ApiResponse>({ success: false, error: 'alertId required' }, { status: 400 })
-    alertsStore.delete(alertId)
+    
+    await db.collection('alerts').doc(alertId).delete()
+
     return NextResponse.json<ApiResponse>({ success: true, message: 'Alert deleted' })
   } catch (err) {
     console.error('[Alerts] DELETE error:', err)

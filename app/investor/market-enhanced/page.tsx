@@ -193,7 +193,7 @@ export default function MarketPage() {
                       </span>
                     </div>
 
-                    <p className="text-xs text-muted-foreground mb-3">{property.location}</p>
+                    <p className="text-xs text-muted-foreground mb-3">{typeof property.location === 'object' ? (property.location as any).areaLocality || (property.location as any).city : property.location as string}</p>
 
                     <div className="grid grid-cols-4 gap-2 text-xs">
                       <div>

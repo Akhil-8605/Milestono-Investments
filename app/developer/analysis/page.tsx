@@ -70,7 +70,7 @@ export default function DevAnalysisPage() {
                 <YAxis stroke="#6b7280" />
                 <Tooltip
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                  formatter={(val) => `₹${(val / 1000000).toFixed(1)}M`}
+                  formatter={(val: any) => `₹${(Number(val) / 1000000).toFixed(1)}M`}
                 />
                 <Legend />
                 <Line
@@ -127,7 +127,7 @@ export default function DevAnalysisPage() {
                 <YAxis stroke="#6b7280" />
                 <Tooltip
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                  formatter={(val) => `₹${(val / 1000000).toFixed(1)}M`}
+                  formatter={(val: any) => `₹${(Number(val) / 1000000).toFixed(1)}M`}
                 />
                 <Bar dataKey="revenue" fill="#3b82f6" />
               </BarChart>

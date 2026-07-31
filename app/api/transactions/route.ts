@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ensureSeeded, transactionsStore } from '@/lib/store/data'
 import { ApiResponse, Transaction } from '@/lib/types'
 
 // GET /api/transactions?userId=xxx&limit=20
 export async function GET(req: NextRequest) {
   try {
-    ensureSeeded()
+    const { db } = await import('@/lib/firebase-admin')
+    if (!db) return NextResponse.json({ success: false, error: 'Firebase not configured' }, { status: 500 })
+
     const userId = req.nextUrl.searchParams.get('userId')
     const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '50', 10)
 
@@ -13,10 +14,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json<ApiResponse>({ success: false, error: 'userId required' }, { status: 400 })
     }
 
-    const txns = Array.from(transactionsStore.values())
-      .filter(t => t.userId === userId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, limit)
+    const snapshot = await db.collection('transactions')
+      .where('userId', '==', userId)
+      .orderBy('timestamp', 'desc')
+      .limit(limit)
+      .get()
+
+    const txns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction))
 
     return NextResponse.json<ApiResponse<Transaction[]>>({ success: true, data: txns })
   } catch (err) {

@@ -62,12 +62,15 @@ export function generateMockProperties(count: number = 12): Property[] {
     properties.push({
       id: `prop-${i + 1}`,
       name: PROPERTY_NAMES[i % PROPERTY_NAMES.length],
+      symbol: `SYM${i + 1}`,
+      type: i % 2 === 0 ? 'commercial' : 'residential',
       location: LOCATIONS[city as keyof typeof LOCATIONS],
       address: `${Math.floor(Math.random() * 999) + 1} Property Lane`,
       city,
       state: 'State',
       pincode: `${100000 + Math.floor(Math.random() * 900000)}`,
       totalUnits,
+      unitsSold: 0,
       unitsAvailable: Math.floor(totalUnits * (0.1 + Math.random() * 0.4)),
       unitPrice: Math.round(unitPrice),
       marketData: ((): import('@/lib/types').PropertyMarketData => {
@@ -103,7 +106,8 @@ export function generateMockProperties(count: number = 12): Property[] {
         prospectusUrl: '/docs/prospectus.pdf',
         riskDisclosureUrl: '/docs/risk.pdf',
       },
-      createdBy: 'developer-1',
+      developerId: 'developer-1',
+      viewCount: 0,
       listedAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000),
       lastUpdated: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
     })

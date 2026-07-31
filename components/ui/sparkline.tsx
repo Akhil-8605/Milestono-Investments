@@ -12,16 +12,17 @@ export function Sparkline({ data, positive, width = 80, height = 30 }: Sparkline
 
   const min = Math.min(...data)
   const max = Math.max(...data)
-  const range = max - min || 1
+  const isFlat = min === max
+  const range = isFlat ? 1 : max - min
 
   const pts = data.map((v, i) => {
     const x = (i / (data.length - 1)) * width
-    const y = height - ((v - min) / range) * (height - 4) - 2
+    const y = isFlat ? height / 2 : height - ((v - min) / range) * (height - 4) - 2
     return `${x.toFixed(1)},${y.toFixed(1)}`
   })
 
   const path = `M ${pts.join(' L ')}`
-  const color = positive === false ? '#ef4444' : positive === true ? '#22c55e' : '#3b82f6'
+  const color = positive === false ? '#ef4444' : positive === true ? '#10b981' : '#64748b'
 
   // Area fill
   const areaPath = `M ${pts[0]} L ${pts.join(' L ')} L ${width},${height} L 0,${height} Z`
@@ -30,7 +31,7 @@ export function Sparkline({ data, positive, width = 80, height = 30 }: Sparkline
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} fill="none">
       <defs>
         <linearGradient id={`spark-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="0%" stopColor={color} stopOpacity={isFlat ? "0" : "0.2"} />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>

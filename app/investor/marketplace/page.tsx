@@ -27,10 +27,12 @@ export default function MarketplacePage() {
     // Search filter
     if (searchTerm) {
       result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p) => {
+          const locStr = typeof p.location === 'object' ? (p.location?.areaLocality || p.location?.city || '') : (p.location || '');
+          return p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          locStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
           p.city.toLowerCase().includes(searchTerm.toLowerCase())
+        }
       )
     }
 

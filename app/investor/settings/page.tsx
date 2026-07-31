@@ -2,168 +2,176 @@
 
 import { useState } from 'react'
 import { AppLayout } from '@/components/shell/app-layout'
-import { Bell, Lock, Eye, Mail, Smartphone } from 'lucide-react'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useSession } from '@/components/shell/session-context'
+import { auth } from '@/lib/firebase'
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
+import { toast } from 'sonner'
+import { Settings, Shield, Bell, Lock, KeyRound, Loader2, User, Mail, UserCog } from 'lucide-react'
 
 export default function InvestorSettingsPage() {
-  const [isEditing, setIsEditing] = useState(false)
+  const { user } = useSession()
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Please fill in all password fields')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match')
+      return
+    }
+
+    const currentUser = auth.currentUser
+    if (!currentUser || !currentUser.email) {
+      toast.error('Authentication error. Please log in again.')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword)
+      await reauthenticateWithCredential(currentUser, credential)
+      await updatePassword(currentUser, newPassword)
+      
+      toast.success('Password updated successfully')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error: any) {
+      console.error('Password change error', error)
+      if (error.code === 'auth/invalid-credential') {
+        toast.error('Incorrect current password')
+      } else {
+        toast.error(error.message || 'Failed to update password')
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <AppLayout>
-      <div className="space-y-6 max-w-3xl">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
+    <AppLayout requiredRole="investor" title="Settings">
+      <div className="absolute top-0 inset-x-0 h-[400px] bg-gradient-to-b from-primary/10 via-background/80 to-background pointer-events-none -z-10" />
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/20 blur-[120px] pointer-events-none -z-10" />
+
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-1000 pb-20">
+        
+        <div className="flex items-center gap-4 border-b border-border/50 pb-8">
+          <div className="p-3 bg-primary/10 rounded-2xl shadow-inner border border-primary/20">
+            <Settings className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Account Settings</h1>
+            <p className="text-muted-foreground mt-2 font-medium">Manage your security preferences and profile details.</p>
+          </div>
         </div>
 
-        {/* Profile Section */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-          <h2 className="text-xl font-bold text-foreground">Profile Information</h2>
-
-          <div className="flex items-end gap-4">
-            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-primary to-blue-800 flex items-center justify-center">
-              <span className="text-3xl font-bold text-white">AJ</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Sidebar Nav */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 px-4 py-3 bg-primary/10 text-primary rounded-xl font-bold">
+              <Shield className="w-5 h-5" /> Security
             </div>
-            <Button className="bg-primary hover:bg-blue-600 text-white">
-              Change Avatar
-            </Button>
+            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground hover:bg-muted/50 rounded-xl font-medium cursor-not-allowed opacity-50">
+              <Bell className="w-5 h-5" /> Notifications (Coming Soon)
+            </div>
           </div>
 
-          <div className="space-y-4">
-            {['First Name', 'Last Name', 'Email', 'Phone'].map((label) => (
-              <div key={label}>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  {label}
-                </label>
-                <Input
-                  disabled={!isEditing}
-                  placeholder={`Enter ${label.toLowerCase()}`}
-                  className="bg-card border-border disabled:opacity-50"
-                />
-              </div>
-            ))}
-          </div>
-
-          <Button
-            onClick={() => setIsEditing(!isEditing)}
-            className="bg-primary hover:bg-blue-600 text-white w-full"
-          >
-            {isEditing ? 'Save Changes' : 'Edit Profile'}
-          </Button>
-        </div>
-
-        {/* Notifications */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-          <h2 className="text-xl font-bold text-foreground">Notification Preferences</h2>
-
-          <div className="space-y-4">
-            {[
-              { label: 'Email Notifications', icon: Mail, description: 'Receive alerts via email' },
-              { label: 'SMS Notifications', icon: Smartphone, description: 'Receive alerts via SMS' },
-              { label: 'Price Alerts', icon: Bell, description: 'Get notified on price changes' },
-              { label: 'Order Updates', icon: Bell, description: 'Order status updates' },
-            ].map(({ label, icon: Icon, description }) => (
-              <div key={label} className="flex items-center justify-between p-4 bg-card rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Icon size={20} className="text-primary" />
-                  <div>
-                    <p className="font-medium text-foreground">{label}</p>
-                    <p className="text-xs text-muted-foreground">{description}</p>
+          {/* Main Content */}
+          <div className="md:col-span-2 space-y-8">
+            
+            {/* Profile Overview Card */}
+            <Card className="p-6 md:p-8 rounded-3xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                <div className="h-24 w-24 rounded-full bg-primary/20 border-4 border-background flex items-center justify-center text-primary text-3xl font-bold shadow-lg shrink-0">
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="flex-1 space-y-3">
+                  <h3 className="text-2xl font-bold tracking-tight">{user?.name || 'Investor'}</h3>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
+                      <Mail className="w-4 h-4" /> {user?.email}
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
+                      <UserCog className="w-4 h-4" /> Investor Account
+                    </div>
                   </div>
                 </div>
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="w-5 h-5 cursor-pointer"
-                />
               </div>
-            ))}
-          </div>
-        </div>
+            </Card>
 
-        {/* Security */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-          <h2 className="text-xl font-bold text-foreground">Security</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2">
-                Current Password
-              </label>
-              <Input
-                type="password"
-                placeholder="Enter current password"
-                className="bg-card border-border"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2">
-                New Password
-              </label>
-              <Input
-                type="password"
-                placeholder="Enter new password"
-                className="bg-card border-border"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2">
-                Confirm Password
-              </label>
-              <Input
-                type="password"
-                placeholder="Confirm new password"
-                className="bg-card border-border"
-              />
-            </div>
-
-            <Button className="w-full bg-primary hover:bg-blue-600 text-white">
-              <Lock size={16} className="mr-2" />
-              Update Password
-            </Button>
-          </div>
-
-          {/* Two Factor */}
-          <div className="pt-4 border-t border-border">
-            <div className="flex items-center justify-between p-4 bg-card rounded-lg">
-              <div>
-                <p className="font-medium text-foreground">Two-Factor Authentication</p>
-                <p className="text-xs text-muted-foreground">Enhance your account security</p>
+            {/* Password Change Card */}
+            <Card className="p-6 md:p-8 rounded-3xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-bold tracking-tight">Change Password</h3>
               </div>
-              <Button className="bg-primary hover:bg-blue-600 text-white px-4">
-                Enable
-              </Button>
-            </div>
-          </div>
-        </div>
 
-        {/* Privacy */}
-        <div className="bg-card border border-border rounded-xl p-6 space-y-6">
-          <h2 className="text-xl font-bold text-foreground">Privacy</h2>
+              <form onSubmit={handlePasswordChange} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Current Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      type="password" 
+                      required 
+                      className="pl-10 h-11 rounded-xl bg-background/50 backdrop-blur border-border/50" 
+                      value={currentPassword}
+                      onChange={e => setCurrentPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-          <div className="space-y-3">
-            {['Make profile public', 'Show portfolio to others', 'Allow messages'].map((item) => (
-              <div key={item} className="flex items-center justify-between p-4 bg-card rounded-lg">
-                <label className="text-muted-foreground cursor-pointer">{item}</label>
-                <input type="checkbox" className="w-5 h-5 cursor-pointer" />
-              </div>
-            ))}
-          </div>
-        </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">New Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      type="password" 
+                      required 
+                      minLength={6}
+                      className="pl-10 h-11 rounded-xl bg-background/50 backdrop-blur border-border/50" 
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-        {/* Danger Zone */}
-        <div className="bg-loss/10 border border-loss/30 rounded-xl p-6 space-y-4">
-          <h2 className="text-xl font-bold text-loss">Danger Zone</h2>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Confirm New Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      type="password" 
+                      required 
+                      minLength={6}
+                      className="pl-10 h-11 rounded-xl bg-background/50 backdrop-blur border-border/50" 
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-          <div className="space-y-2">
-            <Button className="w-full bg-loss/20 hover:bg-loss/30 text-loss border border-loss/40">
-              Download My Data
-            </Button>
-            <Button className="w-full bg-loss hover:bg-red-600 text-white">
-              Delete Account
-            </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isLoading} 
+                  className="w-full h-12 rounded-xl font-bold shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all mt-4"
+                >
+                  {isLoading ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Updating...</> : 'Update Password'}
+                </Button>
+              </form>
+            </Card>
+
           </div>
         </div>
       </div>

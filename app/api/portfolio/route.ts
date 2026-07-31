@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ensureSeeded, investmentsStore, propertiesStore } from '@/lib/store/data'
 import { ApiResponse } from '@/lib/types'
 
 function resolveUserId(req: NextRequest): string | null {
   const param = req.nextUrl.searchParams.get('userId')
   if (param) return param
-  const token = req.cookies.get('milestono_token')?.value
+  const token = req.cookies.get('milestono_investments_token')?.value
   if (token) return `user-${token.split('_')[1]?.slice(0, 8) ?? 'demo'}`
   return null
 }
@@ -13,20 +12,30 @@ function resolveUserId(req: NextRequest): string | null {
 // GET /api/portfolio — compute live portfolio summary + holdings
 export async function GET(req: NextRequest) {
   try {
-    ensureSeeded()
-    const userId = resolveUserId(req)
+    const { db } = await import('@/lib/firebase-admin')
+    if (!db) return NextResponse.json({ success: false, error: 'Firebase not configured' }, { status: 500 })
 
-    // Return enriched holdings
-    const allInvestments = Array.from(investmentsStore.values())
-      .filter(inv => (!userId || inv.userId === userId) && inv.status === 'active')
+    const userId = resolveUserId(req)
+    if (!userId) {
+       return NextResponse.json<ApiResponse>({ success: false, error: 'userId required' }, { status: 400 })
+    }
+
+    const snapshot = await db.collection('investments')
+      .where('userId', '==', userId)
+      .where('status', '==', 'active')
+      .get()
+
+    const allInvestments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any))
 
     let totalInvested = 0
     let currentValue = 0
     let prevDayValue = 0
 
-    const holdings = allInvestments.map(inv => {
-      const property = propertiesStore.get(inv.propertyId)
-      if (!property) return null
+    const holdings = (await Promise.all(allInvestments.map(async inv => {
+      const propertyDoc = await db.collection('properties').doc(inv.propertyId).get()
+      if (!propertyDoc.exists) return null
+
+      const property = propertyDoc.data() as any
 
       const curVal = inv.unitsOwned * property.marketData.currentPrice
       const prevVal = inv.unitsOwned * property.marketData.prevDayPrice
@@ -52,7 +61,7 @@ export async function GET(req: NextRequest) {
         plPct,
         yield: property.expectedYield,
       }
-    }).filter(Boolean)
+    }))).filter(Boolean)
 
     const totalPL    = currentValue - totalInvested
     const plPct      = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0

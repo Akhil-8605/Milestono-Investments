@@ -13,6 +13,8 @@ import { Sparkline } from '@/components/ui/sparkline'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 const CITIES = ['All', 'Mumbai', 'Bangalore', 'Delhi', 'Hyderabad', 'Chennai', 'Lucknow']
 const TYPES = ['All', 'residential', 'commercial', 'industrial']
@@ -25,6 +27,7 @@ const SORTS = [
 ]
 
 interface PropertyRow {
+  developerId: any
   id: string
   symbol: string
   name: string
@@ -64,6 +67,7 @@ function fmtPrice(v: number) {
 function MarketContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [allProperties, setAllProperties] = useState<PropertyRow[]>([])
   const [properties, setProperties] = useState<PropertyRow[]>([])
   const [loading, setLoading] = useState(true)
   const [city, setCity] = useState('All')
@@ -75,25 +79,41 @@ function MarketContent() {
   const [showFilters, setShowFilters] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const fetchProperties = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({ sort, status: 'active' })
-      if (city !== 'All') params.set('city', city)
-      if (type !== 'All') params.set('type', type)
-      if (q) params.set('q', q)
-
-      const res = await fetch(`/api/properties?${params}`)
-      const json = await res.json()
-      if (json.success) setProperties(json.data)
-    } catch {
-      setProperties([])
-    } finally {
+  useEffect(() => {
+    const qQuery = query(collection(db, 'properties'), where('status', '==', 'active'))
+    const unsubscribe = onSnapshot(qQuery, (snapshot) => {
+      const activeProps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+      setAllProperties(activeProps)
       setLoading(false)
-    }
-  }, [city, type, sort, q])
+    }, (error) => {
+      console.error('[Realtime Market] Error:', error)
+      setAllProperties([])
+      setLoading(false)
+    })
+    return () => unsubscribe()
+  }, [])
 
-  useEffect(() => { fetchProperties() }, [fetchProperties])
+  useEffect(() => {
+    let filtered = [...allProperties]
+    
+    if (city !== 'All') {
+      filtered = filtered.filter(p => p.city?.toLowerCase() === city.toLowerCase())
+    }
+    if (type !== 'All') {
+      filtered = filtered.filter(p => p.type === type)
+    }
+    if (q) {
+      const queryLower = q.toLowerCase()
+      filtered = filtered.filter(p => {
+        const locStr = typeof p.city === 'string' ? p.city : '';
+        return p.name?.toLowerCase().includes(queryLower) ||
+               p.symbol?.toLowerCase().includes(queryLower) ||
+               locStr.toLowerCase().includes(queryLower)
+      })
+    }
+    
+    setProperties(filtered)
+  }, [allProperties, city, type, q])
 
   // Load watchlist
   useEffect(() => {
@@ -154,8 +174,18 @@ function MarketContent() {
   const gainers = properties.filter(p => p.marketData.changePct > 0).length
   const losers = properties.filter(p => p.marketData.changePct < 0).length
 
+  // Calculate market stats
+  const totalMarketCap = properties.reduce((acc, p) => acc + ((p.marketData?.currentPrice || p.unitPrice) * p.totalUnits), 0)
+  const avgYield = properties.length > 0 ? (properties.reduce((acc, p) => acc + p.expectedYield, 0) / properties.length) : 0
+
+  const formatMarketCap = (value: number) => {
+    if (value >= 10000000) return (value / 10000000).toFixed(2) + ' Cr'
+    if (value >= 100000) return (value / 100000).toFixed(2) + ' L'
+    return value.toLocaleString('en-IN')
+  }
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Summary bar */}
       <div className="bg-sidebar border-b border-border px-6 py-3 flex items-center gap-8">
         <div className="text-xs text-muted-foreground">
@@ -176,30 +206,30 @@ function MarketContent() {
       </div>
 
       {/* Filter bar */}
-      <div className="bg-card border-b border-border px-6 py-3 flex items-center gap-4">
+      <div className="bg-card/80 backdrop-blur-md border-y border-border px-6 py-4 flex flex-col md:flex-row md:items-center gap-4 sticky top-0 z-20 shadow-sm">
         {/* Search */}
         <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             ref={inputRef}
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Search symbol, name or city..."
-            className="h-8 w-60 pl-8 bg-muted border-border text-foreground placeholder:text-muted-foreground text-xs focus-visible:border-primary focus-visible:ring-0"
+            className="h-9 w-full md:w-64 pl-9 bg-background border-border/50 text-foreground placeholder:text-muted-foreground text-sm focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary rounded-full transition-all"
           />
         </div>
 
         {/* City filter */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
           {CITIES.map(c => (
             <button
               key={c}
               onClick={() => setCity(c)}
               className={cn(
-                'px-3 py-1.5 rounded text-xs font-medium transition-all',
+                'px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap',
                 city === c
-                  ? 'bg-primary/20 text-blue-500 border border-primary/30'
-                  : 'text-muted-foreground hover:text-muted-foreground hover:bg-muted'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'bg-background border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
               {c}
@@ -207,19 +237,19 @@ function MarketContent() {
           ))}
         </div>
 
-        <div className="w-px h-4 bg-secondary" />
+        <div className="hidden md:block w-px h-6 bg-border mx-2" />
 
         {/* Type filter */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
           {TYPES.map(t => (
             <button
               key={t}
               onClick={() => setType(t)}
               className={cn(
-                'px-3 py-1.5 rounded text-xs font-medium transition-all capitalize',
+                'px-4 py-1.5 rounded-full text-xs font-semibold transition-all capitalize whitespace-nowrap',
                 type === t
-                  ? 'bg-green-500/10 text-green-500 border border-gain/30'
-                  : 'text-muted-foreground hover:text-muted-foreground hover:bg-muted'
+                  ? 'bg-green-500/10 text-green-500 border border-green-500/30 shadow-sm'
+                  : 'bg-background border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
               {t === 'All' ? 'All Types' : t}
@@ -230,9 +260,9 @@ function MarketContent() {
         <div className="flex-1" />
         <button
           onClick={() => setShowFilters(v => !v)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-muted-foreground px-2 py-1.5 rounded hover:bg-muted"
+          className="flex items-center gap-2 text-sm font-medium text-foreground bg-background border border-border/50 hover:bg-muted px-4 py-1.5 rounded-full transition-colors"
         >
-          <SlidersHorizontal size={13} />
+          <SlidersHorizontal size={14} />
           Filters
         </button>
       </div>
@@ -305,7 +335,8 @@ function MarketContent() {
               </tr>
             ) : (
               sorted.map((p) => {
-                const up = p.marketData.changePct >= 0
+                const isFlat = p.marketData.changePct === 0
+                const up = p.marketData.changePct > 0
                 const pct = p.totalUnits > 0
                   ? ((p.totalUnits - p.unitsAvailable) / p.totalUnits) * 100
                   : 0
@@ -314,8 +345,8 @@ function MarketContent() {
                 return (
                   <tr
                     key={p.id}
-                    className="market-row border-b border-border/40"
-                    onClick={() => router.push(`/investor/properties/${p.id}`)}
+                    className="market-row border-b border-border/40 hover:bg-muted/20 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/properties/${p.id}`)}
                   >
                     {/* Watchlist star */}
                     <td className="px-6 py-3.5">
@@ -365,19 +396,19 @@ function MarketContent() {
 
                     {/* Change % */}
                     <td className="px-4 py-3.5 text-right">
-                      <div className={cn('flex items-center justify-end gap-1 text-sm font-semibold num', up ? 'text-gain' : 'text-loss')}>
-                        {up ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      <div className={cn('flex items-center justify-end gap-1 text-sm font-semibold num', isFlat ? 'text-muted-foreground' : up ? 'text-gain' : 'text-loss')}>
+                        {!isFlat ? (up ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ChevronUp size={14} className="opacity-0" />}
                         {Math.abs(p.marketData.changePct).toFixed(2)}%
                       </div>
-                      <div className={cn('text-[11px] num', up ? 'text-gain/70' : 'text-loss/70')}>
-                        {up ? '+' : ''}{fmtPrice(p.marketData.change)}
+                      <div className={cn('text-[11px] num', isFlat ? 'text-muted-foreground/70' : up ? 'text-gain/70' : 'text-loss/70')}>
+                        {up && !isFlat ? '+' : ''}{fmtPrice(p.marketData.change)}
                       </div>
                     </td>
 
                     {/* Sparkline */}
                     <td className="px-4 py-3.5 hidden xl:table-cell">
                       <div className="flex justify-end">
-                        <Sparkline data={sparkData} positive={up} width={72} height={28} />
+                        <Sparkline data={sparkData} positive={isFlat ? undefined : up} width={72} height={28} />
                       </div>
                     </td>
 
@@ -421,7 +452,7 @@ function MarketContent() {
                     {/* Action */}
                     <td className="px-6 py-3.5 text-right">
                       <button
-                        onClick={e => { e.stopPropagation(); router.push(`/investor/properties/${p.id}`) }}
+                        onClick={e => { e.stopPropagation(); router.push(`/properties/${p.id}`) }}
                         className="row-action inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-primary/20 hover:bg-blue-600 text-blue-500 hover:text-white text-xs font-semibold border border-primary/20 hover:border-primary/60 transition-all"
                       >
                         <Eye size={11} />

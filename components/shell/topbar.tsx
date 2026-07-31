@@ -6,26 +6,16 @@ import { Input } from '@/components/ui/input'
 import { useRouter } from 'next/navigation'
 import { useTheme } from './theme-provider'
 
-const LIVE_TICKERS = [
-  { sym: 'PRSN', chg: '+1.24%', up: true },
-  { sym: 'GDBK', chg: '-0.38%', up: false },
-  { sym: 'DLCG', chg: '+2.11%', up: true },
-  { sym: 'EMTV', chg: '+0.87%', up: true },
-  { sym: 'SBDA', chg: '-0.15%', up: false },
-  { sym: 'HIBP', chg: '+1.55%', up: true },
-  { sym: 'LDPA', chg: '+0.33%', up: true },
-  { sym: 'THSR', chg: '-0.91%', up: false },
-  { sym: 'BRHZ', chg: '+2.44%', up: true },
-  { sym: 'MHWC', chg: '+0.72%', up: true },
-]
+
 
 interface TopbarProps {
   title?: string
   subtitle?: string
   onMenuClick?: () => void
+  isGuest?: boolean
 }
 
-export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
+export function Topbar({ title, subtitle, onMenuClick, isGuest }: TopbarProps) {
   const router = useRouter()
   const { theme, toggleTheme } = useTheme()
   const [query, setQuery] = useState('')
@@ -57,12 +47,14 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
   return (
     <div className="h-[52px] bg-sidebar border-b border-border flex items-center px-5 gap-4 shrink-0">
       {/* Mobile menu button */}
-      <button 
-        onClick={onMenuClick}
-        className="md:hidden h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 transition-colors hover:bg-secondary"
-      >
-        <Menu size={16} className="text-foreground" />
-      </button>
+      {!isGuest && (
+        <button 
+          onClick={onMenuClick}
+          className="md:hidden h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 transition-colors hover:bg-secondary"
+        >
+          <Menu size={16} className="text-foreground" />
+        </button>
+      )}
 
       {/* Page title */}
       {title && (
@@ -72,20 +64,8 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
         </div>
       )}
 
-      {/* Ticker strip */}
-      <div className="flex-1 overflow-hidden mx-4">
-        <div className="ticker-animate flex items-center gap-6 w-max">
-          {[...LIVE_TICKERS, ...LIVE_TICKERS].map((t, i) => (
-            <span key={i} className="flex items-center gap-1 text-xs shrink-0">
-              <span className="text-muted-foreground font-medium">{t.sym}</span>
-              <span className={t.up ? 'text-gain flex items-center gap-0.5' : 'text-loss flex items-center gap-0.5'}>
-                {t.up ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                {t.chg}
-              </span>
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Space filler where dummy ticker was */}
+      <div className="flex-1 mx-4" />
 
       {/* Search */}
       <form onSubmit={handleSearch} className="shrink-0">
@@ -124,11 +104,22 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
         )}
       </button>
 
-      {/* Bell */}
-      <button className="relative h-8 w-8 rounded-lg bg-muted hover:bg-secondary flex items-center justify-center transition-colors shrink-0">
-        <Bell size={14} className="text-muted-foreground" />
-        <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
-      </button>
+      {isGuest ? (
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          <button onClick={() => router.push('/auth/login')} className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors px-2">
+            Sign In
+          </button>
+          <button onClick={() => router.push('/auth/signup')} className="text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-md transition-colors">
+            Get Started
+          </button>
+        </div>
+      ) : (
+        /* Bell */
+        <button className="relative h-8 w-8 rounded-lg bg-muted hover:bg-secondary flex items-center justify-center transition-colors shrink-0">
+          <Bell size={14} className="text-muted-foreground" />
+          <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
+        </button>
+      )}
     </div>
   )
 }

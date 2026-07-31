@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ApiResponse, LoginResponse } from '@/lib/types'
-
-const MILESTONO_API = process.env.BASE_URL || 'https://api.milestono.com:6005'
+import { db, adminAuth } from '@/lib/firebase-admin'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,49 +7,76 @@ export async function POST(req: NextRequest) {
     const { email, password } = body
 
     if (!email || !password) {
-      return NextResponse.json<ApiResponse>(
+      return NextResponse.json(
         { success: false, error: 'Email and password are required' },
         { status: 400 }
       )
     }
 
-    // Call the external Milestono auth API via isolated investor routes
-    let externalRes: Response
-    try {
-      externalRes = await fetch(`${MILESTONO_API}/api/investors/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-        signal: AbortSignal.timeout(20000),
-      })
-    } catch (fetchErr) {
-      console.warn('[Auth] External API unreachable:', fetchErr)
-      return NextResponse.json<ApiResponse>(
-        { success: false, error: 'Authentication service unavailable' },
-        { status: 503 }
+    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: 'Firebase API key is missing' },
+        { status: 500 }
       )
     }
 
-    if (!externalRes.ok) {
-      const errData = await externalRes.json().catch(() => ({}))
-      return NextResponse.json<ApiResponse>(
-        { success: false, error: errData?.error || 'Invalid credentials' },
-        { status: externalRes.status }
-      )
-    }
-
-    const data: LoginResponse = await externalRes.json()
-
-    // Set httpOnly auth cookie
-    const response = NextResponse.json<ApiResponse<LoginResponse>>({
-      success: true,
-      data,
+    // Authenticate with Firebase REST API
+    const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
     })
 
-    response.cookies.set('milestono_token', data.token, {
+    const authData = await authRes.json()
+
+    if (!authRes.ok) {
+      console.warn('[Auth] Firebase login failed:', authData.error?.message)
+      return NextResponse.json(
+        { success: false, error: 'Invalid credentials' },
+        { status: 401 }
+      )
+    }
+
+    const uid = authData.localId
+
+    if (!db || !adminAuth) {
+      return NextResponse.json(
+        { success: false, error: 'Firebase Admin not initialized' },
+        { status: 500 }
+      )
+    }
+
+    // Fetch user details from Firestore
+    const userDoc = await db.collection('users').doc(uid).get()
+    
+    let userData = {
+      id: uid,
+      email: authData.email,
+      name: authData.displayName || email.split('@')[0],
+      role: 'investor',
+      profileCompleted: false
+    }
+
+    if (userDoc.exists) {
+      userData = { ...userData, ...userDoc.data() }
+    }
+
+    // Generate Custom Token
+    const customToken = await adminAuth.createCustomToken(uid)
+
+    const responseData = {
+      token: customToken,
+      firebaseToken: customToken,
+      user: userData
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      data: responseData,
+    })
+
+    response.cookies.set('milestono_token', customToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -60,13 +85,11 @@ export async function POST(req: NextRequest) {
     })
 
     return response
-  } catch (err) {
+  } catch (err: any) {
     console.error('[Auth] Login error:', err)
-    return NextResponse.json<ApiResponse>(
+    return NextResponse.json(
       { success: false, error: 'Authentication service unavailable' },
       { status: 500 }
     )
   }
 }
-
-

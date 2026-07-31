@@ -14,7 +14,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
   const yieldPercentage = formatPercentage(property.expectedYield)
 
   return (
-    <Link href={`/investor/properties/${property.id}`}>
+    <Link href={`/properties/${property.id}`}>
       <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer overflow-hidden">
         {/* Image Placeholder */}
         <div className="h-48 bg-gradient-to-br from-muted to-muted-foreground flex items-center justify-center">
@@ -29,7 +29,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
             <div className="flex-1">
               <CardTitle className="line-clamp-2">{property.name}</CardTitle>
               <CardDescription className="line-clamp-1 text-xs mt-1">
-                {property.location}, {property.city}
+                {typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {typeof property.location === 'object' ? property.location.state : property.city}
               </CardDescription>
             </div>
             <Badge
