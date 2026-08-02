@@ -21,6 +21,10 @@ if (typeof window !== "undefined") {
   analytics = getAnalytics(app);
 }
 
-const db = getFirestore(app);
+import { initializeFirestore } from "firebase/firestore";
+
+const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
 
 export { app, auth, analytics, db };

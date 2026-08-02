@@ -11,6 +11,8 @@ export interface BaseUser {
   updatedAt: Date
 }
 
+export type User = BaseUser
+
 export interface Investor extends BaseUser {
   role: 'investor'
   kycVerified: boolean
@@ -72,9 +74,12 @@ export interface RentalData {
 }
 
 export interface Property {
-  priceHistory: any
+  globalId?: any
+  priceHistory?: any
   specifications?: any
   unitsSold: number
+  unitsOnHold?: number
+  watchlistCount?: number
   id: string
   symbol: string              // e.g. "PRSN" — 4-letter stock-style ticker
   name: string
@@ -138,7 +143,7 @@ export interface Inquiry {
 }
 
 // ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
-export type NotificationType = 'watchlist_add' | 'inquiry_received' | 'inquiry_sent' | 'system'
+export type NotificationType = 'watchlist_add' | 'inquiry_received' | 'inquiry_sent' | 'system' | 'property_rejected' | 'property_approved' | 'transaction_approved' | 'transaction_rejected' | 'payout_approved' | 'payout_rejected'
 
 export interface AppNotification {
   id: string
@@ -177,6 +182,29 @@ export interface Investment {
 // ─── TRANSACTION ─────────────────────────────────────────────────────────────
 export type TransactionType = 'buy' | 'sell' | 'dividend'
 export type TransactionStatus = 'pending' | 'pending_admin_approval' | 'pending_neft' | 'completed' | 'failed'
+
+// ─── PAYOUTS ─────────────────────────────────────────────────────────────────
+export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'rejected'
+
+export interface PayoutRequest {
+  id: string
+  developerId: string
+  amountRequested: number
+  platformFee: number // 2%
+  gst: number // 3%
+  netAmount: number
+  status: PayoutStatus
+  transactionIds: string[] // which completed transactions this payout covers
+  bankDetails?: {
+    accountName: string
+    accountNumber: string
+    ifscCode: string
+    bankName: string
+  }
+  adminNotes?: string
+  createdAt: Date
+  updatedAt?: Date
+}
 
 export interface Transaction {
   id: string

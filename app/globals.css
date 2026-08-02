@@ -221,11 +221,11 @@
 
 /* Ticker animation */
 @keyframes ticker-slide {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0%   { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
 }
 .ticker-animate {
-  animation: ticker-slide 40s linear infinite;
+  animation: ticker-slide 25s linear infinite;
   will-change: transform;
 }
 .ticker-animate:hover { animation-play-state: paused; }

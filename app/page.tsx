@@ -77,7 +77,7 @@ export default function HomePage() {
           developer: '/developer/dashboard',
           admin: '/admin/properties',
         }
-        router.replace(routes[user.role] ?? '/auth/login')
+        router.replace(routes[user.role] ?? '/')
       } catch {
         sessionStorage.clear()
       }
@@ -173,7 +173,7 @@ export default function HomePage() {
             <p className="text-xs text-muted-foreground mt-0.5">Top performing properties right now</p>
           </div>
           <button
-            onClick={() => router.push('/auth/login')}
+            onClick={() => router.push('/market')}
             className="text-xs text-primary hover:text-blue-500 flex items-center gap-1 transition-colors"
           >
             View All <ArrowRight size={11} />
@@ -204,7 +204,7 @@ export default function HomePage() {
                   <tr
                     key={p.symbol}
                     className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
-                    onClick={() => router.push('/auth/login')}
+                    onClick={() => router.push(`/properties/${p.globalId}`)}
                   >
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ export default function HomePage() {
                     <td className="py-3.5 px-4 text-right text-xs font-mono text-foreground">₹{price.toLocaleString('en-IN')}</td>
                     <td className="py-3.5 px-4 text-right text-xs font-semibold text-gain">{p.expectedYield}%</td>
                     <td className={`py-3.5 px-4 text-right text-xs font-bold ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {up ? '+' : ''}{changePct}%
+                      {up ? '+' : ''}{changePct.toFixed(2)}%
                     </td>
                   </tr>
                 )
@@ -233,7 +233,7 @@ export default function HomePage() {
           </table>
           <div className="px-4 py-3 border-t border-border text-center">
             <button
-              onClick={() => router.push('/auth/login')}
+              onClick={() => router.push('/market')}
               className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 mx-auto transition-colors"
             >
               Sign in to view all 48 properties and start investing <ArrowRight size={11} />

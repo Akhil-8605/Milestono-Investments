@@ -46,6 +46,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'All Properties', href: '/admin/properties', icon: Building2 },
   { label: 'Investors', href: '/admin/investors', icon: Users },
   { label: 'Developers', href: '/admin/developers', icon: UserCog },
+  { label: 'Investment Requests', href: '/admin/investment-request', icon: Receipt },
   { label: 'Notifications', href: '/admin/notifications', icon: Bell },
 ]
 

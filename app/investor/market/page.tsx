@@ -14,7 +14,7 @@ import { Sparkline } from '@/components/ui/sparkline'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 const CITIES = ['All', 'Mumbai', 'Delhi']
@@ -132,11 +132,14 @@ function MarketContent() {
   // Load watchlist
   useEffect(() => {
     if (!user?.id) return
-    fetch(`/api/watchlist?userId=${user.id}`)
-      .then(r => r.json())
-      .then(j => {
-        if (j.success) setWatchlisted(new Set(j.data.map((w: { id: string }) => w.id)))
-      })
+    const unsub = onSnapshot(doc(db, 'watchlists', user.id), (docSnap) => {
+      if (docSnap.exists()) {
+        setWatchlisted(new Set(docSnap.data()?.propertyIds || []))
+      } else {
+        setWatchlisted(new Set())
+      }
+    })
+    return () => unsub()
   }, [user?.id])
 
   async function toggleWatchlist(propertyId: string) {

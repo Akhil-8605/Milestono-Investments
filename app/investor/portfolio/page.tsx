@@ -8,6 +8,9 @@ import {
   ChevronUp, ChevronDown, RefreshCcw, BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -19,30 +22,83 @@ const fmtC = (n: number) => {
 
 export default function PortfolioPage() {
   const router = useRouter()
+  const { user } = useSession()
   const [holdings, setHoldings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [sortCol, setSortCol] = useState('currentValue')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [filter, setFilter] = useState<'all' | 'gain' | 'loss'>('all')
 
-  const fetchPortfolio = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/portfolio')
-      const json = await res.json()
-      if (json.success && json.data?.holdings) {
-        setHoldings(json.data.holdings)
-      } else {
-        setHoldings([])
-      }
-    } catch {
-      setHoldings([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const [rawInvestments, setRawInvestments] = useState<any[]>([])
+  const [propertiesMap, setPropertiesMap] = useState<Record<string, any>>({})
 
-  useEffect(() => { fetchPortfolio() }, [fetchPortfolio])
+  useEffect(() => {
+    if (!user) return
+    setLoading(true)
+
+    const unsubInvestments = onSnapshot(
+      query(collection(db, 'investments'), where('userId', '==', user.id)),
+      (snap) => {
+        setRawInvestments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+        setLoading(false)
+      },
+      (err) => {
+        console.error(err)
+        setLoading(false)
+      }
+    )
+
+    const unsubProps = onSnapshot(
+      collection(db, 'properties'),
+      (snap) => {
+        const map: Record<string, any> = {}
+        snap.docs.forEach(doc => {
+          map[doc.id] = { id: doc.id, ...doc.data() }
+        })
+        setPropertiesMap(map)
+      },
+      (err) => console.error(err)
+    )
+
+    return () => {
+      unsubInvestments()
+      unsubProps()
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (rawInvestments.length === 0) {
+      setHoldings([])
+      return
+    }
+
+    const newHoldings = rawInvestments.map(inv => {
+      const prop = propertiesMap[inv.propertyId]
+      if (!prop) return null
+
+      const invested = inv.amountInvested
+      const currentPropValue = inv.unitsOwned * prop.marketData.currentPrice
+      
+      return {
+        id: inv.id,
+        propertyId: prop.id,
+        propertyName: prop.name,
+        symbol: prop.symbol,
+        city: prop.city,
+        type: prop.type,
+        unitsOwned: inv.unitsOwned,
+        buyPrice: inv.unitPrice,
+        currentPrice: prop.marketData.currentPrice,
+        invested,
+        currentValue: currentPropValue,
+        pl: currentPropValue - invested,
+        plPct: ((currentPropValue - invested) / invested) * 100,
+        yield: prop.rentalData.expectedYield
+      }
+    }).filter(Boolean) as any[]
+
+    setHoldings(newHoldings)
+  }, [rawInvestments, propertiesMap])
 
   const handleSort = (col: string) => {
     if (sortCol === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -119,13 +175,6 @@ export default function PortfolioPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={fetchPortfolio}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-muted-foreground px-3 py-1.5 rounded bg-muted border border-border transition-colors"
-          >
-            <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
         </div>
 
         {/* Holdings Table */}

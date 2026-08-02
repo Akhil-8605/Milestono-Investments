@@ -229,16 +229,17 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         gst: 0,
         totalAmount,
         paymentMethod: method,
-        tokenAmountPaid: method === 'neft_with_token' ? tokenPaidAmt : undefined,
-        razorpayPaymentId: rzpPaymentId,
-        neftDetails: method === 'neft_with_token' ? neftData : null,
+        tokenAmountPaid: method === 'neft_with_token' ? tokenPaidAmt : null,
+        razorpayPaymentId: rzpPaymentId || null,
         verifiedByAdmin: method === 'razorpay_direct',
-        status: method === 'neft_with_token' ? 'pending_admin_approval' : 'completed',
+        status: method === 'neft_with_token' ? 'pending_neft' : 'completed',
+        neftData: method === 'neft_with_token' ? neftData : null,
         timestamp: serverTimestamp()
       })
       
-      if (method === 'razorpay_direct') {
-        import('firebase/firestore').then(async ({ doc, updateDoc, increment }) => {
+      import('firebase/firestore').then(async ({ doc, updateDoc, increment }) => {
+        const propRef = doc(db, 'properties', property!.id)
+        if (method === 'razorpay_direct') {
           await addDoc(collection(db, 'investments'), {
             userId: user!.id,
             propertyId: property!.id,
@@ -253,23 +254,20 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
             purchasedAt: serverTimestamp(),
             status: 'active'
           })
-          const propRef = doc(db, 'properties', property!.id)
           await updateDoc(propRef, { unitsSold: increment(units) }).catch(console.error)
-        })
-      }
+        } else if (method === 'neft_with_token') {
+          await updateDoc(propRef, { unitsOnHold: increment(units) }).catch(console.error)
+        }
+      })
       
-      toast.success(method === 'neft_with_token' ? 'Investment Request Submitted! Pending Admin Approval.' : 'Investment Successful! Added to Portfolio.')
+      toast.success(method === 'neft_with_token' ? 'Token Paid & NEFT Details Submitted! Units placed on hold.' : 'Investment Successful! Added to Portfolio.')
       
-      // Auto-generate invoice
       if (method === 'razorpay_direct' && txRef?.id) {
         generateInvoice(txRef.id, totalAmount, false)
       } else if (method === 'neft_with_token' && tokenPaidAmt && txRef?.id) {
-        // Invoice for the token amount paid
         generateInvoice(txRef.id, tokenPaidAmt, true)
       }
 
-      // Instead of immediate push, let them view the invoice
-      // They can click "Continue to Orders" from the modal
     } catch (err) {
       console.error(err)
       toast.error('Failed to save transaction')
@@ -400,108 +398,47 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
                 </Button>
               </Card>
             ) : (
-              // GREATER THAN 1 LAKH - TOKEN & NEFT LOGIC
+              // GREATER THAN 1 LAKH - TOKEN
               <div className="space-y-6">
-                
-                {!tokenPaid ? (
-                  // TOKEN PAYMENT PHASE
-                  <Card className="p-8 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.05)] space-y-6 bg-gradient-to-br from-card to-card/50">
-                    <div className="flex items-center gap-4 mb-2">
-                      <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center shrink-0">
-                        <Landmark className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-bold">High-Value Transaction Protocol</h4>
-                        <p className="text-xs text-muted-foreground mt-1">Transactions over ₹1 Lakh require a Token Hold and NEFT transfer.</p>
-                      </div>
+                <Card className="p-8 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.05)] space-y-6 bg-gradient-to-br from-card to-card/50">
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center shrink-0">
+                      <Landmark className="w-6 h-6" />
                     </div>
-                    
-                    <div className="bg-background p-4 rounded-xl border border-border text-sm space-y-3">
-                      <div className="flex justify-between items-center text-muted-foreground font-medium">
-                        <span>Total Amount</span>
-                        <span>₹{totalAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex flex-col items-end pt-2 border-t border-border/30 mt-2">
-                        <div className="flex justify-between items-center w-full text-muted-foreground font-medium">
-                          <span>5% Token (Capped at 75K)</span>
-                          <span className="text-amber-500 font-bold text-lg">₹{tokenAmount.toLocaleString('en-IN')}</span>
-                        </div>
-                        <span className="text-[10px] font-bold text-amber-500/70 italic uppercase tracking-wider mt-1">
-                          Rupees {numberToIndianWords(tokenAmount)} Only
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      To secure this allocation, pay the holding token via Razorpay now. Once paid, you will receive instructions to transfer the remaining balance of <strong className="text-foreground">₹{(totalAmount - tokenAmount).toLocaleString('en-IN')}</strong> via NEFT.
-                    </p>
-
-                    <Button 
-                      onClick={() => handleRazorpayPayment(tokenAmount, true)} 
-                      disabled={isProcessing || units > availableUnits || units < 1}
-                      className="w-full h-14 text-lg font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-lg"
-                    >
-                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay Token: ₹${tokenAmount.toLocaleString('en-IN')}`}
-                    </Button>
-                  </Card>
-                ) : (
-                  // NEFT UPLOAD PHASE
-                  <Card className="p-8 border-indigo-500/30 shadow-[0_0_30px_rgba(99,102,241,0.05)] space-y-6 bg-gradient-to-br from-card to-card/50 animate-in fade-in zoom-in duration-500">
-                    <div className="flex items-center gap-3 text-emerald-500 bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 mb-6">
-                      <CheckCircle2 className="w-5 h-5 shrink-0" />
-                      <p className="text-sm font-bold">Token secured successfully. Your units are reserved pending final clearance.</p>
-                    </div>
-
                     <div>
-                      <h4 className="text-lg font-bold mb-2">Step 2: NEFT Transfer Details</h4>
-                      <p className="text-sm text-muted-foreground mb-4">Transfer the remaining <strong className="text-foreground text-base">₹{(totalAmount - tokenAmount).toLocaleString('en-IN')}</strong> to the official Milestono account and upload the proof below.</p>
-                      
-                      <div className="bg-background p-4 rounded-xl border border-border/50 font-mono text-sm space-y-2 mb-6 shadow-inner">
-                        <p><span className="text-muted-foreground">Bank:</span> HDFC Bank (Mumbai Branch)</p>
-                        <p><span className="text-muted-foreground">Acc Name:</span> Milestono Investments Pvt Ltd</p>
-                        <p><span className="text-muted-foreground">Acc No:</span> 50200012345678</p>
-                        <p><span className="text-muted-foreground">IFSC:</span> HDFC0001234</p>
-                      </div>
+                      <h4 className="text-lg font-bold">High-Value Transaction Protocol</h4>
+                      <p className="text-xs text-muted-foreground mt-1">Transactions over ₹1 Lakh require a Token Hold and NEFT transfer.</p>
                     </div>
+                  </div>
+                  
+                  <div className="bg-background p-4 rounded-xl border border-border text-sm space-y-3">
+                    <div className="flex justify-between items-center text-muted-foreground font-medium">
+                      <span>Total Amount</span>
+                      <span>₹{totalAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex flex-col items-end pt-2 border-t border-border/30 mt-2">
+                      <div className="flex justify-between items-center w-full text-muted-foreground font-medium">
+                        <span>5% Token (Capped at 75K)</span>
+                        <span className="text-amber-500 font-bold text-lg">₹{tokenAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-500/70 italic uppercase tracking-wider mt-1">
+                        Rupees {numberToIndianWords(tokenAmount)} Only
+                      </span>
+                    </div>
+                  </div>
 
-                    <form onSubmit={handleNeftSubmit} className="space-y-5">
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Bank Name (Where you sent from)</label>
-                        <Input required value={neftData.bankName} onChange={e => setNeftData({...neftData, bankName: e.target.value})} className="h-12" placeholder="e.g. ICICI Bank" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Sender IFSC Code</label>
-                        <Input required value={neftData.ifsc} onChange={e => setNeftData({...neftData, ifsc: e.target.value})} className="h-12 uppercase" placeholder="e.g. ICIC0001234" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Transaction UTR Number</label>
-                        <Input required value={neftData.utrNumber} onChange={e => setNeftData({...neftData, utrNumber: e.target.value})} className="h-12 uppercase" placeholder="e.g. UTR1234567890" />
-                      </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    To secure this allocation, pay the holding token via Razorpay now. Once paid, you will receive instructions to transfer the remaining balance of <strong className="text-foreground">₹{(totalAmount - tokenAmount).toLocaleString('en-IN')}</strong> via NEFT.
+                  </p>
 
-                      <div className="space-y-3 pt-2">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Upload Proof of Payment (Screenshot)</label>
-                        <div className="flex gap-4 items-center">
-                          <Button type="button" variant="outline" className="h-12 shrink-0 relative overflow-hidden" disabled={uploadingImage}>
-                            <Upload className="w-4 h-4 mr-2" /> 
-                            {uploadingImage ? 'Attaching...' : 'Attach Image'}
-                            <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                          </Button>
-                          <div className="flex flex-wrap gap-2 flex-1">
-                            {neftData.proofImages.map((img, i) => (
-                              <div key={i} className="relative group w-12 h-12 rounded-lg border overflow-hidden">
-                                <img src={img} className="w-full h-full object-cover" alt="Proof" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <Button type="submit" disabled={isProcessing} className="w-full h-14 text-lg font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg mt-6">
-                        {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit for Admin Verification'}
-                      </Button>
-                    </form>
-                  </Card>
-                )}
+                  <Button 
+                    onClick={() => handleRazorpayPayment(tokenAmount, true)} 
+                    disabled={isProcessing || units > availableUnits || units < 1}
+                    className="w-full h-14 text-lg font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-lg"
+                  >
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay Token: ₹${tokenAmount.toLocaleString('en-IN')}`}
+                  </Button>
+                </Card>
               </div>
             )}
           </div>
@@ -521,63 +458,66 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
             </div>
 
             {/* THE INVOICE TO BE CAPTURED BY HTML2CANVAS */}
-            <div className="bg-white text-black p-10 rounded-xl mx-auto shadow-inner border w-full max-w-2xl relative" id="aesthetic-invoice" style={{ fontFamily: 'sans-serif' }}>
+            <div style={{ backgroundColor: '#ffffff', color: '#000000', fontFamily: 'sans-serif' }} className="p-10 rounded-xl mx-auto shadow-inner border w-full max-w-2xl relative" id="aesthetic-invoice">
               <div className="absolute top-0 right-0 p-8 opacity-5">
                 <Building2 className="w-64 h-64" />
               </div>
               
-              <div className="flex justify-between items-start border-b-2 border-gray-100 pb-8 mb-8 relative z-10">
+              <div style={{ borderBottomWidth: '2px', borderBottomColor: '#f3f4f6' }} className="flex justify-between items-start pb-8 mb-8 relative z-10 border-b-2">
                 <div>
-                  <h1 className="text-3xl font-black text-emerald-600 tracking-tight">MILESTONO</h1>
-                  <p className="text-gray-500 text-sm font-medium tracking-widest uppercase mt-1">Investments Pvt Ltd</p>
+                  <h1 style={{ color: '#059669' }} className="text-3xl font-black tracking-tight">MILESTONO</h1>
+                  <p style={{ color: '#6b7280' }} className="text-sm font-medium tracking-widest uppercase mt-1">Investments Pvt Ltd</p>
                 </div>
                 <div className="text-right">
-                  <h2 className="text-2xl font-bold text-gray-800">TAX INVOICE</h2>
-                  <p className="text-gray-500 text-sm font-mono mt-1">#{invoiceDetails.txId.slice(-8).toUpperCase()}</p>
+                  <h2 style={{ color: '#1f2937' }} className="text-2xl font-bold">TAX INVOICE</h2>
+                  <p style={{ color: '#6b7280' }} className="text-sm font-bold font-mono mt-2 uppercase tracking-wider bg-gray-100 py-1 px-3 rounded inline-block">Transaction ID: <span className="text-gray-900">{invoiceDetails.txId}</span></p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-8 mb-10 relative z-10">
                 <div>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Billed To</p>
-                  <p className="font-bold text-gray-800 text-lg">{user?.name}</p>
-                  <p className="text-gray-600 text-sm">{user?.email}</p>
+                  <p style={{ color: '#9ca3af' }} className="text-xs font-bold uppercase tracking-widest mb-2">Billed To</p>
+                  <p style={{ color: '#1f2937' }} className="font-bold text-lg">{user?.name}</p>
+                  <p style={{ color: '#4b5563' }} className="text-sm">{user?.email}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Invoice Details</p>
-                  <p className="text-sm font-semibold text-gray-800">Date: {new Date().toLocaleDateString()}</p>
-                  <p className="text-sm font-semibold text-gray-800">Payment: Razorpay Secure</p>
-                  {invoiceDetails.isToken && <p className="text-xs font-bold text-amber-500 bg-amber-50 inline-block px-2 py-1 rounded mt-1 border border-amber-200">HOLDING TOKEN</p>}
+                <div className="text-right flex flex-col items-end">
+                  <p style={{ color: '#9ca3af' }} className="text-xs font-bold uppercase tracking-widest mb-2">Invoice Details</p>
+                  <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-right">
+                    <p style={{ color: '#1f2937' }} className="text-sm font-bold">Date: {new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: '2-digit' })}</p>
+                    <p style={{ color: '#4b5563' }} className="text-xs font-bold mt-1">Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</p>
+                  </div>
+                  <p style={{ color: '#1f2937' }} className="text-sm font-semibold mt-2">Payment: Razorpay Secure</p>
+                  {invoiceDetails.isToken && <p style={{ color: '#f59e0b', backgroundColor: '#fffbeb', borderColor: '#fde68a' }} className="text-[10px] tracking-widest font-black inline-block px-2 py-1 rounded mt-2 border">HOLDING TOKEN</p>}
                 </div>
               </div>
 
               <div className="border rounded-xl overflow-hidden relative z-10">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-widest">Description</th>
-                      <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-widest text-right">Units</th>
-                      <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-widest text-right">Amount</th>
+                    <tr style={{ backgroundColor: '#f9fafb', borderBottomColor: '#e5e7eb' }} className="border-b">
+                      <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest">Description</th>
+                      <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest text-right">Units</th>
+                      <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-b border-gray-100">
+                    <tr style={{ borderBottomColor: '#f3f4f6' }} className="border-b">
                       <td className="py-6 px-6">
-                        <p className="font-bold text-gray-800">{invoiceDetails.isToken ? 'Fractional Holding Token' : 'Fractional Ownership Allocation'}</p>
-                        <p className="text-sm text-gray-500">{property?.name} ({property?.symbol})</p>
+                        <p style={{ color: '#1f2937' }} className="font-bold">{invoiceDetails.isToken ? 'Fractional Holding Token' : 'Fractional Ownership Allocation'}</p>
+                        <p style={{ color: '#6b7280' }} className="text-sm">{property?.name} ({property?.symbol})</p>
                       </td>
-                      <td className="py-6 px-6 text-right font-mono font-medium text-gray-800">{invoiceDetails.isToken ? '-' : units}</td>
-                      <td className="py-6 px-6 text-right font-mono font-medium text-gray-800">₹{invoiceDetails.amount.toLocaleString('en-IN')}</td>
+                      <td style={{ color: '#1f2937' }} className="py-6 px-6 text-right font-mono font-medium">{invoiceDetails.isToken ? '-' : units}</td>
+                      <td style={{ color: '#1f2937' }} className="py-6 px-6 text-right font-mono font-medium">₹{invoiceDetails.amount.toLocaleString('en-IN')}</td>
                     </tr>
                   </tbody>
                 </table>
-                <div className="bg-emerald-50 flex justify-between items-center p-6 border-t border-emerald-100">
-                  <span className="text-sm font-bold text-emerald-800 uppercase tracking-widest">Total Paid</span>
-                  <span className="text-2xl font-black font-mono text-emerald-700">₹{invoiceDetails.amount.toLocaleString('en-IN')}</span>
+                <div style={{ backgroundColor: '#ecfdf5', borderTopColor: '#d1fae5' }} className="flex justify-between items-center p-6 border-t">
+                  <span style={{ color: '#065f46' }} className="text-sm font-bold uppercase tracking-widest">Total Paid</span>
+                  <span style={{ color: '#047857' }} className="text-2xl font-black font-mono">₹{invoiceDetails.amount.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
-              <div className="mt-12 text-center text-xs text-gray-400 border-t border-gray-100 pt-6">
+              <div style={{ color: '#9ca3af', borderTopColor: '#f3f4f6' }} className="mt-12 text-center text-xs border-t pt-6">
                 <p>{invoiceDetails.isToken ? 'This is a token payment receipt. Final property allocation is subject to NEFT clearance.' : 'This is a computer-generated invoice and does not require a physical signature.'}</p>
                 <p className="mt-1">Thank you for investing with Milestono.</p>
               </div>

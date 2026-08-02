@@ -9,6 +9,8 @@ import { Property } from '@/lib/types'
 import { Building2, Loader2, IndianRupee, TrendingUp, Settings, MapPin, RefreshCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 export default function AdminPropertiesPricesPage() {
   const router = useRouter()
@@ -16,24 +18,16 @@ export default function AdminPropertiesPricesPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetchProperties()
-  }, [])
-
-  const fetchProperties = async () => {
-    try {
-      const res = await fetch(`/api/properties?status=active`)
-      const data = await res.json()
-      if (data.success) {
-        setProperties(data.data || [])
-      } else {
-        toast.error('Failed to load properties')
-      }
-    } catch (error) {
-      toast.error('Failed to load properties')
-    } finally {
+    setIsLoading(true)
+    const unsub = onSnapshot(query(collection(db, 'properties'), where('status', '==', 'active')), (snap) => {
+      setProperties(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Property[])
       setIsLoading(false)
-    }
-  }
+    }, (err) => {
+      toast.error('Failed to load properties')
+      setIsLoading(false)
+    })
+    return () => unsub()
+  }, [])
 
   return (
     <AppLayout requiredRole="admin" title="Price Management">
@@ -48,9 +42,6 @@ export default function AdminPropertiesPricesPage() {
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Price Management</h1>
             <p className="text-muted-foreground mt-2 font-medium">Control global property prices, trigger appreciations, and monitor asset values.</p>
           </div>
-          <Button size="lg" variant="outline" onClick={fetchProperties} className="gap-2 rounded-xl font-bold border-border/50 bg-background/50 backdrop-blur hover:bg-muted shadow-sm transition-all">
-            <RefreshCcw className="w-5 h-5" /> Refresh Data
-          </Button>
         </div>
 
         {isLoading ? (

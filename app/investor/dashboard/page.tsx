@@ -14,9 +14,13 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+
 
 const fmtC = (n: number) => {
   if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`
@@ -51,22 +55,8 @@ interface Portfolio {
   dayPL: number
   dayPLPct: number
   holdings: Holding[]
+  history: { month: string, value: number }[]
 }
-
-const PORTFOLIO_HISTORY = [
-  { month: 'Jan', value: 1200000 },
-  { month: 'Feb', value: 1340000 },
-  { month: 'Mar', value: 1280000 },
-  { month: 'Apr', value: 1510000 },
-  { month: 'May', value: 1620000 },
-  { month: 'Jun', value: 1740000 },
-  { month: 'Jul', value: 1690000 },
-  { month: 'Aug', value: 1820000 },
-  { month: 'Sep', value: 1950000 },
-  { month: 'Oct', value: 1880000 },
-  { month: 'Nov', value: 2100000 },
-  { month: 'Dec', value: 2250000 },
-]
 
 const SECTOR_DATA = [
   { name: 'Commercial', value: 45 },
@@ -120,45 +110,131 @@ function StatCard({ label, value, sub, icon: Icon, type, className }: {
 
 export default function InvestorDashboard() {
   const router = useRouter()
+  const { user } = useSession()
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [alerts, setAlerts] = useState<any[]>([])
 
-  const fetchPortfolio = useCallback(async () => {
+  useEffect(() => {
+    if (!user) return
+
     setLoading(true)
-    try {
-      const res = await fetch('/api/portfolio')
-      const json = await res.json()
-      if (json.success) {
-        setPortfolio(json.data)
-        setLastUpdated(new Date())
+
+    // Listen to user's investments
+    const unsubInvestments = onSnapshot(
+      query(collection(db, 'investments'), where('userId', '==', user.id)),
+      (investmentsSnap) => {
+        const rawInvestments = investmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+
+        if (rawInvestments.length === 0) {
+          setPortfolio({
+            totalInvested: 0, currentValue: 0, totalPL: 0, plPct: 0,
+            dayPL: 0, dayPLPct: 0, holdings: [], history: []
+          })
+          setLoading(false)
+          return
+        }
+
+        // Fetch properties for those investments
+        const propertyIds = Array.from(new Set(rawInvestments.map(inv => inv.propertyId)))
+        let allProperties: any[] = []
+
+        const fetchProperties = async () => {
+          for (let i = 0; i < propertyIds.length; i += 10) {
+            const chunk = propertyIds.slice(i, i + 10)
+            const q = query(collection(db, 'properties'), where('id', 'in', chunk))
+            const snap = await getDocs(q)
+            allProperties = [...allProperties, ...snap.docs.map(d => ({ id: d.id, ...d.data() }))]
+          }
+
+          let totalInvested = 0
+          let currentValue = 0
+          let dayPL = 0
+          let previousValue = 0
+
+          const holdings: Holding[] = []
+
+          for (const inv of rawInvestments) {
+            const prop = allProperties.find(p => p.id === inv.propertyId)
+            if (!prop) continue
+
+            const invested = inv.amountInvested
+            const currentPropValue = inv.unitsOwned * prop.marketData.currentPrice
+            const prevPropValue = inv.unitsOwned * prop.marketData.prevDayPrice
+            
+            totalInvested += invested
+            currentValue += currentPropValue
+            previousValue += prevPropValue
+            dayPL += (currentPropValue - prevPropValue)
+
+            holdings.push({
+              id: inv.id,
+              propertyId: prop.id,
+              propertyName: prop.name,
+              symbol: prop.symbol,
+              city: prop.city,
+              type: prop.type,
+              unitsOwned: inv.unitsOwned,
+              buyPrice: inv.unitPrice,
+              currentPrice: prop.marketData.currentPrice,
+              invested,
+              currentValue: currentPropValue,
+              pl: currentPropValue - invested,
+              plPct: ((currentPropValue - invested) / invested) * 100,
+              yield: prop.rentalData.expectedYield
+            })
+          }
+
+          holdings.sort((a, b) => b.currentValue - a.currentValue)
+          const totalPL = currentValue - totalInvested
+          const plPct = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0
+          const dayPLPct = previousValue > 0 ? (dayPL / previousValue) * 100 : 0
+
+          setPortfolio({
+            totalInvested,
+            currentValue,
+            totalPL,
+            plPct,
+            dayPL,
+            dayPLPct,
+            holdings,
+            history: [] // Mocking history for now as it's complex to aggregate historically without timeseries db
+          })
+          setLastUpdated(new Date())
+          setLoading(false)
+        }
+
+        fetchProperties()
+      },
+      (err) => {
+        console.error(err)
+        setLoading(false)
       }
-    } catch {
-      setPortfolio({
-        totalInvested: 1850000, currentValue: 2250000, totalPL: 400000, plPct: 21.62,
-        dayPL: 12400, dayPLPct: 0.56, holdings: [],
-      })
-    } finally {
-      setLoading(false)
+    )
+
+    // Listen to alerts
+    const unsubAlerts = onSnapshot(
+      query(collection(db, 'notifications'), where('userId', '==', user.id), orderBy('createdAt', 'desc')),
+      (snap) => setAlerts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+      (err) => setAlerts([])
+    )
+
+    return () => {
+      unsubInvestments()
+      unsubAlerts()
     }
-  }, [])
-
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const res = await fetch('/api/alerts')
-      const json = await res.json()
-      if (json.success) setAlerts(json.data)
-    } catch { setAlerts([]) }
-  }, [])
-
-  useEffect(() => { fetchPortfolio(); fetchAlerts(); }, [fetchPortfolio, fetchAlerts])
+  }, [user])
 
   const isPositive = (portfolio?.totalPL ?? 0) >= 0
   const isDayPositive = (portfolio?.dayPL ?? 0) >= 0
   const allocationData = portfolio?.holdings?.length
     ? portfolio.holdings.slice(0, 6).map((h, i) => ({ name: h.symbol, value: h.currentValue, color: PIE_COLORS[i % PIE_COLORS.length] }))
-    : SECTOR_DATA.map((s, i) => ({ ...s, color: PIE_COLORS[i] }))
+    : []
+
+  const chartData = portfolio?.history?.length 
+    ? portfolio.history 
+    : Array.from({ length: 12 }).map((_, i) => ({ month: `M${i+1}`, value: 0 }))
 
   return (
     <AppLayout title="Dashboard" subtitle="Welcome back, Investor.">
@@ -181,10 +257,6 @@ export default function InvestorDashboard() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={fetchPortfolio} className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl bg-card border border-border hover:bg-muted transition-all shadow-sm">
-              <RefreshCcw size={14} className={loading ? 'animate-spin' : ''} />
-              Refresh
-            </button>
             <Button onClick={() => router.push('/investor/market')} className="h-10 px-5 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg shadow-primary/25 transition-all gap-2">
               Invest Now <ArrowRight size={16} />
             </Button>
@@ -205,7 +277,19 @@ export default function InvestorDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
+        {loading ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 mt-6">
+              <div className="lg:col-span-2 bg-card/60 border border-border rounded-[1.5rem] p-6 h-[340px] animate-pulse" />
+              <div className="bg-card/60 border border-border rounded-[1.5rem] p-6 h-[340px] animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 gap-6 relative z-10 mt-6">
+              <div className="bg-card/60 border border-border rounded-[1.5rem] p-6 h-[400px] animate-pulse" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 mt-6">
           {/* Performance Chart */}
           <div className="lg:col-span-2 bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
@@ -219,7 +303,7 @@ export default function InvestorDashboard() {
             </div>
             <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={PORTFOLIO_HISTORY} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="portGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -279,29 +363,7 @@ export default function InvestorDashboard() {
         </div>
 
         {/* Bottom Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
-          
-          {/* Income Chart */}
-          <div className="bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] p-6 shadow-sm">
-            <h3 className="text-base font-bold text-foreground mb-1">Passive Income</h3>
-            <p className="text-xs text-muted-foreground mb-6">Monthly rental payouts</p>
-            <div className="h-[180px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={MONTHLY_INCOME} margin={{ left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} dy={10} />
-                  <YAxis tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    formatter={(v: any) => [fmt(v), 'Rental Income']} 
-                    contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: 12, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
-                    cursor={{ fill: 'var(--muted)', opacity: 0.4 }}
-                  />
-                  <Bar dataKey="income" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={24} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 relative z-10">
           {/* Holdings */}
           <div className="lg:col-span-2 bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] shadow-sm flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-white/5">
@@ -326,7 +388,7 @@ export default function InvestorDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(portfolio?.holdings?.length ? portfolio.holdings : DEMO_HOLDINGS).slice(0, 4).map((h: Holding, i) => {
+                  {(portfolio?.holdings || []).slice(0, 4).map((h: Holding, i) => {
                     const up = (h.pl ?? h.plPct) >= 0
                     return (
                       <tr key={h.id ?? i} onClick={() => router.push(`/properties/${h.propertyId}`)} className="border-b border-border/40 hover:bg-muted/20 transition-colors cursor-pointer group">
@@ -355,18 +417,25 @@ export default function InvestorDashboard() {
                   })}
                 </tbody>
               </table>
+              {(!portfolio?.holdings || portfolio.holdings.length === 0) && (
+                <div className="py-12 flex flex-col items-center justify-center text-center">
+                  <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                    <Briefcase className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-foreground mb-1">No Active Holdings</h4>
+                  <p className="text-xs text-muted-foreground max-w-[200px] mb-4">You haven't invested in any properties yet.</p>
+                  <Button onClick={() => router.push('/investor/market')} size="sm" className="h-8 text-xs">
+                    Explore Market
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
+        </>
+        )}
 
       </div>
     </AppLayout>
   )
 }
-
-const DEMO_HOLDINGS: Holding[] = [
-  { id: 'd1', propertyId: 'prop-1', propertyName: 'Prestige Sunrise Park', symbol: 'PRSN', city: 'Bangalore', type: 'residential', unitsOwned: 12, buyPrice: 118000, currentPrice: 125000, invested: 1416000, currentValue: 1500000, pl: 84000, plPct: 5.93, yield: 9.2 },
-  { id: 'd2', propertyId: 'prop-2', propertyName: 'Godrej BKC Heights', symbol: 'GDBK', city: 'Mumbai', type: 'commercial', unitsOwned: 5, buyPrice: 272000, currentPrice: 285000, invested: 1360000, currentValue: 1425000, pl: 65000, plPct: 4.78, yield: 7.8 },
-  { id: 'd3', propertyId: 'prop-4', propertyName: 'Embassy Tech Village', symbol: 'EMTV', city: 'Bangalore', type: 'commercial', unitsOwned: 20, buyPrice: 95200, currentPrice: 98000, invested: 1904000, currentValue: 1960000, pl: 56000, plPct: 2.94, yield: 11.2 },
-  { id: 'd4', propertyId: 'prop-11', propertyName: 'Mahindra World City', symbol: 'MHWC', city: 'Chennai', type: 'industrial', unitsOwned: 30, buyPrice: 36500, currentPrice: 35000, invested: 1095000, currentValue: 1050000, pl: -45000, plPct: -4.11, yield: 12.4 },
-]

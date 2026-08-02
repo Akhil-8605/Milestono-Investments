@@ -17,6 +17,7 @@ import {
 
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { createNotification } from '@/lib/notifications'
 
 export default function AdminSubmissionsPage() {
   const [properties, setProperties] = useState<any[]>([])
@@ -66,6 +67,34 @@ export default function AdminSubmissionsPage() {
       
       if (json.success) {
         toast.success(`Property ${status} successfully`)
+        
+        if (status === 'rejected') {
+          await createNotification(
+            selectedProperty.developerId,
+            'developer',
+            'property_rejected',
+            'Property Submission Rejected',
+            rejectMessage,
+            {
+              propertySymbol: selectedProperty.symbol || selectedProperty.globalId,
+              propertyName: selectedProperty.basicDetails?.propertyName,
+              propertyImage: selectedProperty.media?.images?.[0] || ''
+            }
+          )
+        } else if (status === 'approved') {
+          await createNotification(
+            selectedProperty.developerId,
+            'developer',
+            'property_approved',
+            'Property Approved!',
+            'Your property has been successfully approved and is now live on the marketplace.',
+            {
+              propertySymbol: selectedProperty.symbol || selectedProperty.globalId,
+              propertyName: selectedProperty.basicDetails?.propertyName
+            }
+          )
+        }
+
         setSelectedProperty(null)
         setRejectMessage('')
       } else {

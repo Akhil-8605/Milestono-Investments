@@ -3,6 +3,10 @@
 import { AppLayout } from '@/components/shell/app-layout'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Area, AreaChart } from 'recharts'
 import { TrendingUp, TrendingDown, Users, DollarSign, Building2, Target, Calendar, Filter } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 const REVENUE_DATA = [
   { month: 'Jan', revenue: 245000, occupancy: 85 },
@@ -29,14 +33,40 @@ const INVESTOR_DIST = [
 const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6']
 
 export default function AnalyticsPage() {
+  const { user } = useSession()
+  const [properties, setProperties] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!user) return
+    const unsub = onSnapshot(
+      query(collection(db, 'properties'), where('developerId', '==', user.id)),
+      (snap) => {
+        setProperties(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+      }
+    )
+    return () => unsub()
+  }, [user])
+
+  const totalRevenue = properties.reduce((s, p) => s + (((p.totalUnits || 0) - (p.availableUnits || 0)) * (p.unitPrice || 0)), 0)
+  const avgROI = properties.length ? properties.reduce((s, p) => s + (p.rentalData?.expectedYield || 0), 0) / properties.length : 0
+  const activeInvestors = properties.reduce((s, p) => s + (p.investorsCount || 0), 0)
+  const avgOccupancy = properties.length ? properties.reduce((s, p) => s + (p.rentalData?.occupancyRate || 0), 0) / properties.length : 0
+
   const stats = {
-    totalRevenue: 2045000,
-    avgROI: 17.2,
-    activeInvestors: 1243,
-    avgOccupancy: 89,
-    revenueGrowth: 12.5,
+    totalRevenue,
+    avgROI: avgROI.toFixed(1),
+    activeInvestors,
+    avgOccupancy: avgOccupancy.toFixed(1),
+    revenueGrowth: 12.5, // Mock historical data for growth
     occupancyGrowth: 5.2,
   }
+
+  // Generate dynamic property performance data
+  const PROPERTY_PERFORMANCE = properties.map(p => ({
+    name: p.name,
+    revenue: ((p.totalUnits || 0) - (p.availableUnits || 0)) * (p.unitPrice || 0),
+    roi: p.rentalData?.expectedYield || 0
+  }))
 
   return (
     <AppLayout title="Analytics" subtitle="Revenue and performance insights" requiredRole="developer">

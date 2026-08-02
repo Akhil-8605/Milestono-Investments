@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/shell/app-layout'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Property } from '@/lib/types'
-import { Building2, PlusCircle, Loader2, IndianRupee, Eye, TrendingUp, Settings, MapPin, Star } from 'lucide-react'
+import { Building2, PlusCircle, Loader2, IndianRupee, Eye, TrendingUp, Settings, MapPin, Star, Edit2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
@@ -149,8 +149,11 @@ export default function DeveloperPropertiesPage() {
                       <div className="space-y-1">
                         <p className="text-[11px] uppercase text-muted-foreground font-bold tracking-wider">Availability</p>
                         <p className="font-mono font-bold text-lg text-foreground">
-                          {((property.totalUnits || 0) - (property.unitsSold || 0)).toLocaleString()} <span className="text-sm text-muted-foreground font-medium">left</span>
+                          {((property.totalUnits || 0) - (property.unitsSold || 0) - (property.unitsOnHold || 0)).toLocaleString()} <span className="text-sm text-muted-foreground font-medium">left</span>
                         </p>
+                        {property.unitsOnHold && property.unitsOnHold > 0 ? (
+                           <p className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded inline-block mt-1">{property.unitsOnHold.toLocaleString()} on hold</p>
+                        ) : null}
                       </div>
                     </div>
 
@@ -172,11 +175,11 @@ export default function DeveloperPropertiesPage() {
                     </div>
                     
                     <div className="flex flex-col sm:flex-row items-center gap-3 pt-4 border-t border-border/50">
-                      <Button variant="outline" className="w-full sm:flex-1 h-11 rounded-xl bg-background/50 hover:bg-muted font-bold transition-all" onClick={() => router.push(`/developer/properties/${property.symbol}`)}>
-                        <Settings className="w-4 h-4 mr-2 text-muted-foreground" /> Manage Property
+                      <Button variant="outline" className="w-full sm:flex-1 h-11 rounded-xl bg-background/50 hover:bg-muted font-bold transition-all" onClick={() => router.push(`/developer/list?edit=${property.symbol}`)}>
+                        <Edit2 className="w-4 h-4 mr-2 text-muted-foreground" /> Edit Property
                       </Button>
-                      <Button variant="default" className="w-full sm:flex-1 h-11 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 font-bold transition-all" onClick={() => router.push(`/properties/details/${developerId}/${property.symbol}`)}>
-                        <Eye className="w-4 h-4 mr-2" /> View Public Listing
+                      <Button variant="default" className="w-full sm:flex-1 h-11 rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 font-bold transition-all" onClick={() => router.push(`/developer/properties/${property.symbol}`)}>
+                        <Settings className="w-4 h-4 mr-2" /> Manage Property
                       </Button>
                     </div>
                   </div>

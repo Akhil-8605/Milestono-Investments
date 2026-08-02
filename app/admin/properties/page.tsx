@@ -3,11 +3,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppLayout } from '@/components/shell/app-layout'
-import { Building2, Search, Loader2, MapPin, TrendingUp, Filter, IndianRupee } from 'lucide-react'
+import { Building2, Search, Loader2, MapPin, TrendingUp, Filter, IndianRupee, BadgeCheck, Briefcase, User2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 export default function AdminPropertiesPage() {
   const router = useRouter()
@@ -19,25 +22,16 @@ export default function AdminPropertiesPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
 
-  const fetchProperties = async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/admin/properties?status=active')
-      const json = await res.json()
-      if (json.success) {
-        setProperties(json.data)
-      } else {
-        toast.error(json.error)
-      }
-    } catch (err) {
-      toast.error('Failed to load properties')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    fetchProperties()
+    setLoading(true)
+    const unsub = onSnapshot(query(collection(db, 'properties'), where('status', '==', 'active')), (snap) => {
+      setProperties(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+      setLoading(false)
+    }, (err) => {
+      toast.error('Failed to load properties')
+      setLoading(false)
+    })
+    return () => unsub()
   }, [])
 
   // Filter Logic
@@ -167,19 +161,76 @@ export default function AdminPropertiesPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        <div className="font-medium text-sm">{p.developerId || 'Unknown'}</div>
+                        <Dialog>
+                          <DialogTrigger render={
+                            <Button variant="outline" size="sm" className="h-8 gap-2 bg-muted/50 hover:bg-muted font-bold text-xs shadow-sm border-border" />
+                          }>
+                            <Briefcase className="w-3.5 h-3.5 text-primary" />
+                            {p.developerInfo?.companyName || p.developerId || 'VISHWA'}
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden bg-transparent border-0 shadow-2xl">
+                            <div className="bg-card w-full h-[500px] flex flex-col relative rounded-3xl overflow-hidden border border-border/50">
+                              <div className="h-32 bg-gradient-to-br from-primary to-indigo-600 relative">
+                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                              </div>
+                              <div className="absolute top-16 inset-x-0 flex justify-center">
+                                <div className="w-32 h-32 rounded-2xl bg-background border-4 border-card shadow-xl flex items-center justify-center overflow-hidden">
+                                  {p.developerInfo?.logoUrl ? (
+                                    <img src={p.developerInfo.logoUrl} alt="Developer Logo" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Building2 className="w-16 h-16 text-muted-foreground opacity-50" />
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-20 px-8 pb-8 text-center flex-1 flex flex-col justify-between">
+                                <div>
+                                  <h3 className="text-2xl font-black text-foreground mb-1">{p.developerInfo?.companyName || p.developerId || 'VISHWA'}</h3>
+                                  <p className="text-sm text-primary font-bold tracking-widest uppercase mb-4 flex items-center justify-center gap-1">
+                                    <BadgeCheck className="w-4 h-4" /> Verified Developer
+                                  </p>
+                                  <div className="bg-muted/50 p-4 rounded-2xl border border-border/50 flex flex-col gap-3 text-left">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center shrink-0 border"><User2 className="w-4 h-4 text-muted-foreground" /></div>
+                                      <div>
+                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Contact Person</p>
+                                        <p className="text-sm font-semibold">{p.developerInfo?.contactPerson || 'Not Provided'}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center shrink-0 border font-mono text-[10px] font-bold">ID</div>
+                                      <div>
+                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Developer UID</p>
+                                        <p className="text-xs font-mono truncate">{p.developerId || 'N/A'}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="mt-6 pt-4 border-t border-border/50">
+                                  <p className="text-[10px] text-muted-foreground font-mono">ID Card valid for Milestono Platform strictly.</p>
+                                </div>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </td>
                       <td className="px-5 py-3 font-mono text-sm text-right" title={`₹${((p.marketData?.currentPrice || p.unitPrice || 0) * (p.totalUnits || 0)).toLocaleString('en-IN')}`}>
-                        ₹{((p.marketData?.currentPrice || p.unitPrice || 0) * (p.totalUnits || 0) / 10000000).toFixed(2)}
+                        ₹{((p.marketData?.currentPrice || p.unitPrice || 0) * (p.totalUnits || 0) / 10000000).toFixed(2)} Cr
                       </td>
                       <td className="px-5 py-3 text-right">
-                        {p.appreciationSchedule ? (
+                        {p.marketData?.appreciationPct !== undefined ? (
                           <div className="flex flex-col items-end">
-                            <span className="text-xs font-semibold text-green-600">+{p.appreciationSchedule.percentage}%</span>
-                            <span className="text-[10px] text-muted-foreground">Target: {new Date(p.appreciationSchedule.targetDate).toLocaleDateString()}</span>
+                            <span className={p.marketData.appreciationPct >= 0 ? "text-xs font-bold text-emerald-500" : "text-xs font-bold text-rose-500"}>
+                              {p.marketData.appreciationPct >= 0 ? '+' : ''}{p.marketData.appreciationPct.toFixed(2)}%
+                            </span>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current</span>
+                          </div>
+                        ) : p.appreciationSchedule ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs font-bold text-primary">+{p.appreciationSchedule.percentage}%</span>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target</span>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded border">Unset</span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/50 px-2 py-1 rounded-md border border-border/50">Unset</span>
                         )}
                       </td>
                       <td className="px-5 py-3 text-center">

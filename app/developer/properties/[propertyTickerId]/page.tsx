@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -25,6 +26,7 @@ export default function DeveloperAnalyticsPage() {
   const [investors, setInvestors] = useState<any[]>([])
   const [watchlisters, setWatchlisters] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [timeframe, setTimeframe] = useState<'1W' | '1M' | '1Y' | 'ALL'>('1M')
 
   useEffect(() => {
     if (!propertyTickerId) return
@@ -82,10 +84,28 @@ export default function DeveloperAnalyticsPage() {
 
   if (!property) return null
 
-  const chartData = property.marketData?.priceHistory?.map(p => ({
-    date: format(new Date(p.date), 'MMM dd'),
-    price: p.price
-  })) || []
+  const filterChartData = () => {
+    if (!property?.marketData?.priceHistory) return []
+    const hist = property.marketData.priceHistory
+    if (timeframe === 'ALL' || hist.length === 0) return hist
+    
+    const now = new Date()
+    const msPerDay = 24 * 60 * 60 * 1000
+    let cutoffMs = 0
+    if (timeframe === '1W') cutoffMs = 7 * msPerDay
+    if (timeframe === '1M') cutoffMs = 30 * msPerDay
+    if (timeframe === '1Y') cutoffMs = 365 * msPerDay
+    
+    const cutoffDate = new Date(now.getTime() - cutoffMs)
+    return hist.filter((point: any) => new Date(point.date) >= cutoffDate)
+  }
+  
+  const chartData = filterChartData()
+  
+  const currentPrice = property.marketData?.currentPrice ?? property.unitPrice ?? 0
+  const changePct = property.marketData?.changePct ?? 0
+  const isUp = changePct > 0
+  const isFlat = changePct === 0
 
   return (
     <AppLayout requiredRole="developer" title={`${property.symbol} Analytics`}>
@@ -140,8 +160,8 @@ export default function DeveloperAnalyticsPage() {
           
           <Card className="p-5 flex flex-col justify-center border shadow-sm relative overflow-hidden">
             <span className="text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">Appreciation</span>
-            <span className="text-2xl font-bold flex items-center text-green-600 font-mono">
-              +{property.marketData?.changePct?.toFixed(2) || 0}%
+            <span className={cn("text-2xl font-bold flex items-center font-mono", isUp ? "text-green-600 dark:text-green-500" : isFlat ? "text-muted-foreground" : "text-red-600 dark:text-red-500")}>
+              {isUp ? '+' : ''}{(property.marketData?.changePct || 0).toFixed(2)}%
             </span>
           </Card>
         </div>
@@ -151,13 +171,21 @@ export default function DeveloperAnalyticsPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Price Chart */}
             <Card className="p-6 border shadow-sm">
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
                 <div>
                   <h3 className="text-xl font-bold tracking-tight">Price Performance</h3>
                   <p className="text-muted-foreground font-medium mt-1">Asset valuation over time</p>
                 </div>
-                <div className="p-2 bg-primary/10 rounded-xl text-primary">
-                  <Activity className="w-5 h-5" />
+                <div className="flex bg-muted/50 rounded-xl p-1.5 border border-border/50 backdrop-blur-md self-start sm:self-auto">
+                  {(['1W', '1M', '1Y', 'ALL'] as const).map((tf) => (
+                    <button 
+                      key={tf} 
+                      onClick={() => setTimeframe(tf)}
+                      className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", tf === timeframe ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    >
+                      {tf}
+                    </button>
+                  ))}
                 </div>
               </div>
               
@@ -167,20 +195,41 @@ export default function DeveloperAnalyticsPage() {
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                       <defs>
                         <linearGradient id="colorPriceDev" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                          <stop offset="5%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500}} dy={10} minTickGap={30} />
-                      <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500}} tickFormatter={(value) => `₹${(value/1000).toFixed(0)}k`} dx={-10} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}
-                        itemStyle={{ color: 'hsl(var(--primary))', fontWeight: 'bold' }}
-                        labelStyle={{ color: 'hsl(var(--muted-foreground))', fontWeight: 'semibold', marginBottom: '4px' }}
-                        formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, 'Price']}
+                      <XAxis 
+                        dataKey="date" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 600}} 
+                        dy={15} 
+                        minTickGap={30} 
+                        tickFormatter={(value) => {
+                          try {
+                            const date = new Date(value);
+                            if (isNaN(date.getTime())) return String(value);
+                            return format(date, 'MMM d, h:mm a');
+                          } catch { return String(value) }
+                        }}
                       />
-                      <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorPriceDev)" activeDot={{ r: 6, stroke: 'hsl(var(--background))', strokeWidth: 3 }} />
+                      <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 600}} tickFormatter={(value) => `₹${(value/1000).toFixed(0)}k`} dx={-10} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}
+                        itemStyle={{ color: isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)", fontWeight: 'bold', fontSize: '16px' }}
+                        labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Price']}
+                        labelFormatter={(label) => {
+                          try {
+                            const date = new Date(label);
+                            if (isNaN(date.getTime())) return String(label);
+                            return format(date, 'MMM d, yyyy, h:mm a');
+                          } catch { return String(label) }
+                        }}
+                      />
+                      <Area type="monotone" dataKey="price" stroke={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} strokeWidth={3} fillOpacity={1} fill="url(#colorPriceDev)" activeDot={{ r: 6, stroke: 'hsl(var(--background))', strokeWidth: 3 }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
@@ -214,7 +263,7 @@ export default function DeveloperAnalyticsPage() {
                           <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded uppercase font-semibold tracking-wider">New</span>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-1 mb-2">{inq.message}</p>
-                        <p className="text-xs text-muted-foreground font-semibold">{inq.createdAt ? (inq.createdAt.toDate ? formatDistanceToNow(inq.createdAt.toDate()) : formatDistanceToNow(new Date(inq.createdAt))) : 'Just now'} ago</p>
+                        <p className="text-xs text-muted-foreground font-semibold">{inq.createdAt ? ((inq.createdAt as any).toDate ? formatDistanceToNow((inq.createdAt as any).toDate()) : formatDistanceToNow(new Date(inq.createdAt))) : 'Just now'} ago</p>
                       </div>
                       
                       <Dialog>
@@ -254,6 +303,65 @@ export default function DeveloperAnalyticsPage() {
           </div>
 
           <div className="space-y-6">
+            {/* Price History */}
+            <Card className="p-6 border shadow-sm">
+              <div className="flex items-center gap-3 mb-6 border-b pb-4">
+                <div className="p-2 bg-primary/10 rounded-md">
+                  <Activity className="w-4 h-4 text-primary" />
+                </div>
+                <h3 className="text-lg font-bold tracking-tight">Price Updates</h3>
+              </div>
+              
+              {(!property.marketData?.priceHistory || property.marketData.priceHistory.length === 0) ? (
+                <div className="text-center py-8 text-muted-foreground font-medium bg-muted/20 rounded-xl border border-dashed text-sm">
+                  No price history available.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {[...property.marketData.priceHistory].reverse().map((ph: any, i: number, arr: any[]) => {
+                    const prevPrice = arr[i + 1]?.price
+                    let changePct = 0
+                    if (prevPrice && prevPrice > 0) {
+                      changePct = ((ph.price - prevPrice) / prevPrice) * 100
+                    }
+                    const isUp = changePct > 0
+                    const isFlat = changePct === 0
+                    
+                    return (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl border hover:border-primary/50 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-primary flex items-center justify-center text-primary-foreground text-sm font-bold shrink-0 shadow-sm">
+                          <IndianRupee className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold">₹{ph.price.toLocaleString('en-IN')}</p>
+                          <p className="text-[11px] text-muted-foreground font-semibold">
+                            {(() => {
+                              try {
+                                const d = new Date(ph.date);
+                                if (isNaN(d.getTime())) return String(ph.date);
+                                return format(d, 'MMM d, yyyy, h:mm a');
+                              } catch { return String(ph.date) }
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {prevPrice !== undefined ? (
+                        <div className={cn("text-xs font-bold font-mono px-2 py-1 rounded-md", isUp ? "bg-green-500/10 text-green-600 dark:text-green-400" : isFlat ? "bg-muted text-muted-foreground" : "bg-red-500/10 text-red-600 dark:text-red-400")}>
+                          {isUp ? '+' : ''}{changePct.toFixed(2)}%
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-bold font-mono px-2 py-1 rounded-md bg-muted text-muted-foreground uppercase tracking-widest">
+                          Initial
+                        </div>
+                      )}
+                    </div>
+                  )})}
+                </div>
+              )}
+            </Card>
+
             {/* Investors List */}
             <Card className="p-6 border shadow-sm">
               <div className="flex items-center gap-3 mb-6 border-b pb-4">

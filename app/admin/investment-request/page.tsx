@@ -8,9 +8,10 @@ import { Transaction } from '@/lib/types'
 import { Loader2, CheckCircle2, XCircle, FileImage, ExternalLink, Landmark } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp, increment } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp, increment, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { format } from 'date-fns'
+import { createNotification } from '@/lib/notifications'
 
 export default function AdminInvestmentRequestsPage() {
   const { user } = useSession()
@@ -19,32 +20,31 @@ export default function AdminInvestmentRequestsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchRequests()
-  }, [user])
-
-  const fetchRequests = async () => {
-    if (user?.role !== 'admin') return
-    try {
-      const q = query(
-        collection(db, 'transactions'),
-        where('status', '==', 'pending_admin_approval')
-      )
-      const snap = await getDocs(q)
+    if (!user || user.role !== 'admin') {
+      setIsLoading(false)
+      return
+    }
+    const q = query(
+      collection(db, 'transactions'),
+      where('status', 'in', ['pending_admin_approval', 'pending_neft'])
+    )
+    const unsubscribe = onSnapshot(q, (snap) => {
       let docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction))
-      
       docs.sort((a, b) => {
         const timeA = (a.timestamp as any)?.toMillis ? (a.timestamp as any).toMillis() : new Date(a.timestamp).getTime()
         const timeB = (b.timestamp as any)?.toMillis ? (b.timestamp as any).toMillis() : new Date(b.timestamp).getTime()
         return timeB - timeA
       })
-      
       setRequests(docs)
-    } catch (err) {
-      toast.error('Failed to load investment requests')
-    } finally {
       setIsLoading(false)
-    }
-  }
+    }, (err) => {
+      console.error(err)
+      toast.error('Failed to load realtime investment requests')
+      setIsLoading(false)
+    })
+    
+    return () => unsubscribe()
+  }, [user])
 
   const handleApprove = async (tx: Transaction) => {
     setProcessingId(tx.id)
@@ -72,16 +72,26 @@ export default function AdminInvestmentRequestsPage() {
         status: 'active'
       })
 
-      // 3. Update Property Units Sold
+      // 3. Update Property Units Sold and resolve Hold
       const propRef = doc(db, 'properties', tx.propertyId)
       await updateDoc(propRef, {
-        unitsSold: increment(tx.units)
+        unitsSold: increment(tx.units),
+        unitsOnHold: increment(-tx.units)
       }).catch(console.error)
 
+      await createNotification(
+        tx.userId,
+        'investor',
+        'transaction_approved',
+        'Investment Approved!',
+        `Your NEFT payment for ${tx.units} units of ${tx.propertySymbol} has been verified and approved. Units have been allocated to your portfolio.`,
+        {
+          transactionId: tx.id,
+          propertySymbol: tx.propertySymbol,
+        }
+      )
+
       toast.success(`Approved investment for ${tx.units} units of ${tx.propertySymbol}`)
-      
-      // Remove from list
-      setRequests(prev => prev.filter(r => r.id !== tx.id))
     } catch (err) {
       console.error(err)
       toast.error('Failed to approve transaction')
@@ -98,8 +108,26 @@ export default function AdminInvestmentRequestsPage() {
         status: 'failed',
         verifiedByAdmin: false
       })
+
+      // Resolve hold on rejection too
+      const propRef = doc(db, 'properties', tx.propertyId)
+      await updateDoc(propRef, {
+        unitsOnHold: increment(-tx.units)
+      }).catch(console.error)
+
+      await createNotification(
+        tx.userId,
+        'investor',
+        'transaction_rejected',
+        'Investment Rejected',
+        `Your NEFT payment for ${tx.units} units of ${tx.propertySymbol} was rejected. Please contact support.`,
+        {
+          transactionId: tx.id,
+          propertySymbol: tx.propertySymbol,
+        }
+      )
+
       toast.success('Transaction rejected')
-      setRequests(prev => prev.filter(r => r.id !== tx.id))
     } catch (err) {
       toast.error('Failed to reject transaction')
     } finally {

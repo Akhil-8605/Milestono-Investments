@@ -7,47 +7,51 @@ import { Transaction } from '@/lib/types'
 import { Loader2, ArrowRightLeft, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { format } from 'date-fns'
 
+import { useRouter } from 'next/navigation'
+
 export default function InvestorOrdersPage() {
+  const router = useRouter()
   const { user } = useSession()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const fetchTransactions = async () => {
-      if (!user) return
-      try {
-        const q = query(
-          collection(db, 'transactions'),
-          where('userId', '==', user.id)
-        )
-        const snap = await getDocs(q)
-        let docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction))
-        
-        // Sort in memory to avoid composite index error for MVP
-        docs.sort((a, b) => {
-          const timeA = (a.timestamp as any)?.toMillis ? (a.timestamp as any).toMillis() : new Date(a.timestamp).getTime()
-          const timeB = (b.timestamp as any)?.toMillis ? (b.timestamp as any).toMillis() : new Date(b.timestamp).getTime()
-          return timeB - timeA
-        })
-        
-        setTransactions(docs)
-      } catch (err) {
-        toast.error('Failed to load transaction history')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchTransactions()
+    if (!user) return
+    setIsLoading(true)
+    const q = query(
+      collection(db, 'transactions'),
+      where('userId', '==', user.id)
+    )
+    const unsubscribe = onSnapshot(q, (snap) => {
+      let docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction))
+      
+      // Sort in memory to avoid composite index error for MVP
+      docs.sort((a, b) => {
+        const timeA = (a.timestamp as any)?.toMillis ? (a.timestamp as any).toMillis() : new Date(a.timestamp).getTime()
+        const timeB = (b.timestamp as any)?.toMillis ? (b.timestamp as any).toMillis() : new Date(b.timestamp).getTime()
+        return timeB - timeA
+      })
+      
+      setTransactions(docs)
+      setIsLoading(false)
+    }, (err) => {
+      console.error(err)
+      toast.error('Failed to load realtime transaction history')
+      setIsLoading(false)
+    })
+
+    return () => unsubscribe()
   }, [user])
 
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'completed': return { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'Completed' }
       case 'pending_admin_approval': return { icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'Verification Pending' }
+      case 'pending_neft': return { icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'NEFT Verification Pending' }
       case 'failed': return { icon: XCircle, color: 'text-rose-500', bg: 'bg-rose-500/10', border: 'border-rose-500/20', text: 'Failed' }
       default: return { icon: AlertCircle, color: 'text-muted-foreground', bg: 'bg-muted', border: 'border-border', text: status }
     }
@@ -82,7 +86,11 @@ export default function InvestorOrdersPage() {
               const date = (tx.timestamp as any)?.toDate ? (tx.timestamp as any).toDate() : new Date(tx.timestamp || Date.now())
 
               return (
-                <Card key={tx.id} className="p-6 border border-border/50 hover:shadow-lg transition-all rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <Card 
+                  key={tx.id} 
+                  className="p-6 border border-border/50 hover:shadow-lg transition-all rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 cursor-pointer hover:border-primary/50"
+                  onClick={() => router.push(`/investor/orders/${tx.id}`)}
+                >
                   <div className="flex items-center gap-6">
                     <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
                       <Icon className="w-6 h-6" />
@@ -95,10 +103,10 @@ export default function InvestorOrdersPage() {
                         <span>{format(date, 'MMM dd, yyyy • hh:mm a')}</span>
                         <span>•</span>
                         <span>{tx.type === 'buy' ? 'Purchase' : 'Sell'}</span>
-                        {tx.paymentMethod === 'neft_with_token' && (
+                        {tx.status === 'pending_neft' && (
                           <>
                             <span>•</span>
-                            <span className="text-indigo-500 font-bold">NEFT / Token</span>
+                            <span className="text-amber-500 font-bold animate-pulse">Payment Required</span>
                           </>
                         )}
                       </div>

@@ -82,9 +82,9 @@ export function Topbar({ title, subtitle, onMenuClick, isGuest }: TopbarProps) {
 
       {/* Market status */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <span className={`h-1.5 w-1.5 rounded-full ${isMarketOpen ? 'bg-gain animate-pulse' : 'bg-[#6b7280]'}`} />
+        <span className={`h-1.5 w-1.5 rounded-full ${true ? 'bg-gain animate-pulse' : 'bg-[#6b7280]'}`} />
         <span className="text-[11px] text-muted-foreground font-medium">
-          {isMarketOpen ? 'OPEN' : 'CLOSED'}
+          OPEN
         </span>
       </div>
 

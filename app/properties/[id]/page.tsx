@@ -18,6 +18,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { cn } from '@/lib/utils'
 import { logPropertyView, logPropertyWatchlist } from '@/lib/interactions'
 import Link from 'next/link'
+import { format } from 'date-fns'
 
 export default function PropertyDetailsPage() {
   const router = useRouter()
@@ -30,6 +31,7 @@ export default function PropertyDetailsPage() {
   const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isOverlayOpen, setIsOverlayOpen] = useState(false)
+  const [timeframe, setTimeframe] = useState<'1W' | '1M' | '1Y' | 'ALL'>('1M')
   const { user } = useSession()
   const hasLoggedView = useRef(false)
 
@@ -158,6 +160,23 @@ export default function PropertyDetailsPage() {
   const isFlat = changePct === 0
   const marketCap = currentPrice * (property.totalUnits || 0)
 
+  const filterChartData = () => {
+    if (!property?.marketData?.priceHistory) return []
+    const hist = property.marketData.priceHistory
+    if (timeframe === 'ALL' || hist.length === 0) return hist
+    
+    const now = new Date()
+    const msPerDay = 24 * 60 * 60 * 1000
+    let cutoffMs = 0
+    if (timeframe === '1W') cutoffMs = 7 * msPerDay
+    if (timeframe === '1M') cutoffMs = 30 * msPerDay
+    if (timeframe === '1Y') cutoffMs = 365 * msPerDay
+    
+    const cutoffDate = new Date(now.getTime() - cutoffMs)
+    return hist.filter((point: any) => new Date(point.date) >= cutoffDate)
+  }
+  const chartData = filterChartData()
+
   const loc = typeof property.location === 'object' ? property.location : null
   const rawForm = (property as any).rawFormData || {}
   const specs = property.specifications || rawForm.specifications || null
@@ -177,7 +196,7 @@ export default function PropertyDetailsPage() {
         </div>
 
         {/* Hero Header section */}
-        <header className="relative z-10 border-b border-border/50 bg-background/60 dark:bg-black/20 backdrop-blur-2xl pt-14 pb-8 px-6 md:px-12">
+        <header className="relative z-10 pt-14 pb-8 px-6 md:px-12">
           <div className="w-[90vw] max-w-[95rem] mx-auto flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8">
             <div className="space-y-5 flex-1">
               <div className="flex flex-wrap items-center gap-3">
@@ -243,7 +262,6 @@ export default function PropertyDetailsPage() {
 
           {/* Main Content (Left 8 Columns) */}
           <div className="lg:col-span-8 space-y-10">
-
             {/* Media Bento Box */}
             {property.images && property.images.length > 0 && (
               <div className="grid grid-cols-3 grid-rows-2 gap-4 h-[500px]">
@@ -290,8 +308,12 @@ export default function PropertyDetailsPage() {
                   <TrendingUp className="w-6 h-6 text-primary" /> Price Action
                 </h3>
                 <div className="flex bg-muted/50 rounded-xl p-1.5 border border-border/50 backdrop-blur-md">
-                  {['1W', '1M', '1Y', 'ALL'].map((tf) => (
-                    <button key={tf} className={cn("px-5 py-2 rounded-lg text-xs font-bold transition-all", tf === '1M' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {(['1W', '1M', '1Y', 'ALL'] as const).map((tf) => (
+                    <button 
+                      key={tf} 
+                      onClick={() => setTimeframe(tf)}
+                      className={cn("px-5 py-2 rounded-lg text-xs font-bold transition-all", tf === timeframe ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    >
                       {tf}
                     </button>
                   ))}
@@ -299,7 +321,7 @@ export default function PropertyDetailsPage() {
               </div>
               <div className="h-[350px] w-full relative z-10">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={property.marketData?.priceHistory || []} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorPrice2" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} stopOpacity={0.3} />
@@ -307,13 +329,34 @@ export default function PropertyDetailsPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 600 }} dy={15} minTickGap={30} />
-                    <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 600 }} tickFormatter={(value) => `₹${value.toLocaleString('en-IN')}`} dx={-15} orientation="right" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 600 }} 
+                      dy={15} 
+                      minTickGap={30} 
+                      tickFormatter={(value) => {
+                        try {
+                          const date = new Date(value);
+                          if (isNaN(date.getTime())) return String(value);
+                          return format(date, 'MMM d, h:mm a');
+                        } catch { return String(value) }
+                      }}
+                    />
+                    <YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 600 }} tickFormatter={(value) => `₹${value.toLocaleString('en-IN')}`} dx={-15} orientation="right" />
                     <Tooltip
                       contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}
                       itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '16px' }}
                       formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Price']}
-                      labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}
+                      labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}
+                      labelFormatter={(label) => {
+                        try {
+                          const date = new Date(label);
+                          if (isNaN(date.getTime())) return String(label);
+                          return format(date, 'MMM d, yyyy, h:mm a');
+                        } catch { return String(label) }
+                      }}
                     />
                     <Area type="monotone" dataKey="price" stroke={isFlat ? "hsl(var(--muted-foreground))" : isUp ? "hsl(142.1 76.2% 36.3%)" : "hsl(346.8 77.2% 49.8%)"} strokeWidth={3} fillOpacity={1} fill="url(#colorPrice2)" />
                   </AreaChart>
@@ -592,7 +635,7 @@ export default function PropertyDetailsPage() {
                       onClick={() => {
                         if (!user) {
                           toast.error('Please log in to purchase.')
-                          router.push('/login')
+                          router.push('/auth/login')
                           return
                         }
                         const currentRole = user.role?.toLowerCase() || ''

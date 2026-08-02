@@ -13,6 +13,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -86,13 +89,24 @@ const Tip = ({ active, payload, label }: any) =>
 
 export default function DeveloperDashboard() {
   const router = useRouter()
-  const [properties, setProperties] = useState(PROPERTIES)
+  const { user } = useSession()
+  const [properties, setProperties] = useState<any[]>([])
+  
+  useEffect(() => {
+    if (!user) return
+    const unsub = onSnapshot(
+      query(collection(db, 'properties'), where('developerId', '==', user.id)),
+      (snap) => {
+        setProperties(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+      }
+    )
+    return () => unsub()
+  }, [user])
 
-  const totalRevenue = properties.reduce((s, p) => s + p.revenue, 0)
-  const totalUnitsSold = properties.reduce((s, p) => s + p.unitsSold, 0)
-  const totalUnits = properties.reduce((s, p) => s + p.totalUnits, 0)
-  const avgYield = properties.length ? properties.reduce((s, p) => s + p.yield, 0) / properties.length : 0
-  const pendingPayout = totalRevenue * 0.93 // after 7% platform fee
+  const totalUnits = properties.reduce((s, p) => s + (p.totalUnits || 0), 0)
+  const totalUnitsSold = properties.reduce((s, p) => s + ((p.totalUnits || 0) - (p.availableUnits || 0)), 0)
+  const totalRevenue = properties.reduce((s, p) => s + (((p.totalUnits || 0) - (p.availableUnits || 0)) * (p.unitPrice || 0)), 0)
+  const pendingPayout = totalRevenue * 0.95 // 5% fee as requested earlier
 
   return (
     <AppLayout title="Developer Console" subtitle="Property Management & Analytics">

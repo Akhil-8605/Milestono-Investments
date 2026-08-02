@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/shell/app-layout'
 import { useForm, FormProvider } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -11,6 +11,8 @@ import { Card } from '@/components/ui/card'
 import { ChevronRight, ChevronLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 import BasicDetails from './components/basic-details'
 import Specifications from './components/specifications'
@@ -21,31 +23,25 @@ import LegalVerification from './components/legal-verification'
 import DeveloperInfo from './components/developer-info'
 
 const STEPS = [
-  { id: 'basicDetails', title: 'Basic Details' },
-  { id: 'specifications', title: 'Specifications' },
+  { id: 'basic', title: 'Basic Details' },
+  { id: 'specs', title: 'Specifications' },
   { id: 'location', title: 'Location' },
-  { id: 'investmentInfo', title: 'Investment Info' },
-  { id: 'media', title: 'Property Media' },
-  { id: 'legalVerification', title: 'Legal Verification' },
-  { id: 'developerInfo', title: 'Developer Info' }
+  { id: 'investment', title: 'Investment Info' },
+  { id: 'media', title: 'Media' },
+  { id: 'legal', title: 'Legal & Docs' },
+  { id: 'developer', title: 'Developer Info' }
 ]
 
-export default function ListPropertyPage() {
+function DeveloperListPropertyForm() {
   const router = useRouter()
   const { user } = useSession()
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [developerId, setDeveloperId] = useState('')
-
-  useEffect(() => {
-    const raw = sessionStorage.getItem('milestono_user')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed.developerId) {
-        setDeveloperId(parsed.developerId)
-      }
-    }
-  }, [])
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editPropertyId, setEditPropertyId] = useState<string | null>(null)
+  const [isFetchingEdit, setIsFetchingEdit] = useState(false)
+  const searchParams = useSearchParams()
 
   const methods = useForm<PropertyFormValues>({
     resolver: zodResolver(propertyFormSchema) as any,
@@ -62,6 +58,52 @@ export default function ListPropertyPage() {
       }
     }
   })
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('milestono_user')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.developerId) {
+        setDeveloperId(parsed.developerId)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const editSymbol = searchParams.get('edit')
+    if (editSymbol && user?.id) {
+      setIsEditMode(true)
+      setIsFetchingEdit(true)
+      
+      const fetchProperty = async () => {
+        try {
+          const q = query(
+            collection(db, 'properties'), 
+            where('symbol', '==', editSymbol),
+            where('developerId', '==', user.id)
+          )
+          const snap = await getDocs(q)
+          if (!snap.empty) {
+            const doc = snap.docs[0]
+            const data = doc.data()
+            setEditPropertyId(doc.id)
+            
+            if (data.rawFormData) {
+              methods.reset(data.rawFormData)
+            } else {
+              toast.error('Old property format detected. Some fields might be missing.')
+            }
+          }
+        } catch (err) {
+          toast.error('Failed to load property for editing')
+        } finally {
+          setIsFetchingEdit(false)
+        }
+      }
+      
+      fetchProperty()
+    }
+  }, [searchParams, user, methods])
 
   const { handleSubmit, trigger, formState: { errors } } = methods
 
@@ -110,7 +152,7 @@ export default function ListPropertyPage() {
         unitsSold: 0,
         unitPrice: unitPrice,
         developerId: user?.id,
-        status: 'active',
+        status: 'pending_approval',
         globalId: `${data.developerInfo.developerId}-${data.basicDetails.tickerId}`,
         createdAt: new Date().toISOString(),
         expectedYield: data.investmentInfo.rentalYield || 0,
@@ -144,16 +186,21 @@ export default function ListPropertyPage() {
         rawFormData: data
       }
 
-      const res = await fetch('/api/properties', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      if (isEditMode && editPropertyId) {
+        await updateDoc(doc(db, 'properties', editPropertyId), payload)
+        toast.success('Property updated successfully!')
+      } else {
+        const res = await fetch('/api/properties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
 
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Failed to list property')
+        const json = await res.json()
+        if (!json.success) throw new Error(json.error || 'Failed to list property')
+        toast.success('Property submitted successfully for review!')
+      }
 
-      toast.success('Property submitted successfully for review!')
       router.push('/developer/dashboard')
     } catch (e: any) {
       toast.error(e.message || 'Error submitting property')
@@ -240,5 +287,19 @@ export default function ListPropertyPage() {
         </Card>
       </div>
     </AppLayout>
+  )
+}
+
+export default function DeveloperListPropertyPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout requiredRole="developer" title="List Property">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    }>
+      <DeveloperListPropertyForm />
+    </Suspense>
   )
 }

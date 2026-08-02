@@ -1,257 +1,171 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AppLayout } from '@/components/shell/app-layout'
-import { SearchFilter } from '@/components/search/search-filter'
-import { DataTable } from '@/components/table/data-table'
-import { AlertForm } from '@/components/forms/alert-form'
-import { Bell, Trash2, Edit2, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Card } from '@/components/ui/card'
+import { Bell, Loader2, Info, Building2, CheckCircle2, Clock, MapPin, Mail, Phone } from 'lucide-react'
+import { toast } from 'sonner'
+import { useSession } from '@/components/shell/session-context'
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { AppNotification } from '@/lib/notifications'
+import { format } from 'date-fns'
 
-const mockAlerts = [
-  {
-    id: '1',
-    symbol: 'DOWNOFC',
-    property: 'Downtown Office Complex',
-    type: 'price_above',
-    triggerPrice: 11000,
-    currentPrice: 10500,
-    status: 'active',
-    createdAt: '2024-01-10',
-    notifications: ['email', 'push'],
-  },
-  {
-    id: '2',
-    symbol: 'SKYRES',
-    property: 'Sky Residence Tower',
-    type: 'price_below',
-    triggerPrice: 8000,
-    currentPrice: 8500,
-    status: 'active',
-    createdAt: '2024-01-15',
-    notifications: ['email'],
-  },
-  {
-    id: '3',
-    symbol: 'WESTMALL',
-    property: 'West Shopping Mall',
-    type: 'yield_change',
-    triggerPrice: 0,
-    currentPrice: 12000,
-    status: 'triggered',
-    createdAt: '2024-01-20',
-    notifications: ['email', 'sms'],
-  },
-]
+export default function InvestorAlertsPage() {
+  const { user } = useSession()
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-export default function AlertsPage() {
-  const [alerts, setAlerts] = useState(mockAlerts)
-  const [filteredAlerts, setFilteredAlerts] = useState(mockAlerts)
-  const [showForm, setShowForm] = useState(false)
-
-  const handleSearch = (query: string) => {
-    const filtered = alerts.filter(
-      (alert) =>
-        alert.symbol.toLowerCase().includes(query.toLowerCase()) ||
-        alert.property.toLowerCase().includes(query.toLowerCase())
+  useEffect(() => {
+    if (!user) return
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.id),
+      where('role', '==', 'investor')
     )
-    setFilteredAlerts(filtered)
-  }
+    const unsubscribe = onSnapshot(q, (snap) => {
+      let docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppNotification))
+      docs.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime()
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime()
+        return timeB - timeA
+      })
+      setNotifications(docs)
+      setIsLoading(false)
+    }, (err) => {
+      console.error(err)
+      toast.error('Failed to load realtime alerts')
+      setIsLoading(false)
+    })
+    return () => unsubscribe()
+  }, [user])
 
-  const handleFilter = (filters: Record<string, any>) => {
-    let filtered = alerts
-
-    if (filters.status) {
-      filtered = filtered.filter((a) => a.status === filters.status)
+  const markAsRead = async (id: string, currentlyRead: boolean) => {
+    if (currentlyRead) return
+    try {
+      await updateDoc(doc(db, 'notifications', id), { read: true })
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+    } catch (err) {
+      console.error(err)
     }
-    if (filters.type) {
-      filtered = filtered.filter((a) => a.type === filters.type)
+  }
+
+  const renderNotification = (n: AppNotification) => {
+    const date = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt || Date.now())
+
+    if (n.type === 'developer_reply') {
+      return (
+        <Card key={n.id} onClick={() => markAsRead(n.id!, n.read)} className={`p-6 border ${n.read ? 'border-border/50 opacity-70' : 'border-indigo-500/30 shadow-lg shadow-indigo-500/10'} transition-all cursor-pointer rounded-2xl bg-gradient-to-br from-card to-indigo-500/5`}>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-lg">{n.title}</h3>
+                <span className="text-xs text-muted-foreground ml-auto">{format(date, 'MMM dd, yyyy • hh:mm a')}</span>
+              </div>
+              
+              <div className="bg-background p-4 rounded-xl border mb-4 border-l-4 border-l-indigo-500">
+                <p className="text-sm font-medium">Message:</p>
+                <p className="text-sm text-muted-foreground mt-1">"{n.message}"</p>
+              </div>
+              
+              <div className="flex items-center gap-2 text-xs font-semibold text-indigo-500 bg-indigo-500/10 w-fit px-3 py-1.5 rounded-full">
+                <Building2 className="w-3.5 h-3.5" /> Property: {n.metadata?.propertySymbol}
+              </div>
+            </div>
+
+            <div className="w-full md:w-64 bg-background border rounded-xl p-4 shrink-0 overflow-hidden relative">
+              {n.metadata?.developerBanner && (
+                <div className="absolute top-0 left-0 right-0 h-12">
+                  <img src={n.metadata.developerBanner} className="w-full h-full object-cover opacity-50" />
+                </div>
+              )}
+              <h4 className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-6 relative z-10">Developer Profile</h4>
+              <div className="flex items-center gap-3 mb-4 relative z-10">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-background border shadow-sm">
+                  {n.metadata?.developerLogo ? (
+                    <img src={n.metadata.developerLogo} alt="Developer" className="w-full h-full object-cover" />
+                  ) : (
+                    <Building2 className="w-full h-full p-2 text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-bold text-sm leading-tight">{n.metadata?.developerCompany || 'Developer'}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono bg-muted px-1 py-0.5 rounded mt-1 inline-block">{n.metadata?.developerId || 'ID'}</p>
+                </div>
+              </div>
+              <div className="space-y-2 text-xs relative z-10">
+                {n.metadata?.developerPhone && <p className="flex items-center gap-2"><Phone className="w-3 h-3 text-muted-foreground" /> {n.metadata.developerPhone}</p>}
+                {n.metadata?.developerAddress && <p className="flex items-start gap-2"><MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" /> <span className="line-clamp-2">{n.metadata.developerAddress}</span></p>}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )
     }
 
-    setFilteredAlerts(filtered)
-  }
+    let Icon = Info
+    let colorClass = 'text-blue-500'
+    let bgClass = 'bg-blue-500/10'
+    let borderClass = 'border-blue-500/30'
 
-  const handleDeleteAlert = (id: string) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== id))
-    setFilteredAlerts((prev) => prev.filter((a) => a.id !== id))
-  }
+    if (n.type === 'payment_successful' || n.type === 'order_placed') {
+      Icon = CheckCircle2
+      colorClass = 'text-emerald-500'
+      bgClass = 'bg-emerald-500/10'
+      borderClass = 'border-emerald-500/30'
+    } else if (n.type === 'neft_submitted' || n.type === 'neft_on_hold') {
+      Icon = Clock
+      colorClass = 'text-amber-500'
+      bgClass = 'bg-amber-500/10'
+      borderClass = 'border-amber-500/30'
+    } else if (n.type === 'watchlist_alert') {
+      Icon = Bell
+      colorClass = 'text-purple-500'
+      bgClass = 'bg-purple-500/10'
+      borderClass = 'border-purple-500/30'
+    }
 
-  const handleCreateAlert = (data: any) => {
-    console.log('Creating alert:', data)
-    setShowForm(false)
+    return (
+      <Card key={n.id} onClick={() => markAsRead(n.id!, n.read)} className={`p-4 border ${n.read ? 'border-border/50 opacity-70' : `${borderClass} shadow-sm`} transition-all cursor-pointer rounded-xl flex items-start gap-4`}>
+        <div className={`w-10 h-10 rounded-full ${bgClass} flex items-center justify-center ${colorClass} shrink-0`}>
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="flex-1">
+          <div className="flex justify-between items-start">
+            <h4 className="font-bold text-sm">{n.title}</h4>
+            <p className="text-[10px] text-muted-foreground">{format(date, 'MMM dd, yyyy • hh:mm a')}</p>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">{n.message}</p>
+        </div>
+      </Card>
+    )
   }
 
   return (
-    <AppLayout title="Alerts" subtitle="Price & notification alerts">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Price Alerts</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your price alerts and notifications
-            </p>
+    <AppLayout requiredRole="investor" title="Alerts & Updates">
+      <div className="max-w-[1000px] mx-auto px-6 py-8 space-y-6 pb-20">
+        
+        <div className="border-b pb-4">
+          <h1 className="text-2xl font-bold tracking-tight">Updates</h1>
+          <p className="text-muted-foreground text-sm mt-1">Track your order statuses, developer replies, and watchlist alerts.</p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex h-64 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-primary hover:bg-blue-600 text-white flex items-center gap-2"
-          >
-            <Bell size={18} />
-            Create Alert
-          </Button>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Alerts', value: alerts.length, icon: '🔔' },
-            {
-              label: 'Active',
-              value: alerts.filter((a) => a.status === 'active').length,
-              icon: '✓',
-            },
-            {
-              label: 'Triggered',
-              value: alerts.filter((a) => a.status === 'triggered').length,
-              icon: '⚡',
-            },
-            {
-              label: 'Today',
-              value: alerts.filter((a) => a.createdAt === '2024-01-20').length,
-              icon: '📅',
-            },
-          ].map(({ label, value, icon }) => (
-            <div key={label} className="bg-card border border-border rounded-xl p-4">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {label}
-              </p>
-              <div className="flex items-end justify-between mt-2">
-                <p className="text-2xl font-bold text-foreground">{value}</p>
-                <span className="text-2xl">{icon}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Create Alert Form */}
-        {showForm && (
-          <AlertForm
-            currentPrice={10500}
-            onSubmit={handleCreateAlert}
-          />
-        )}
-
-        {/* Search and Filter */}
-        <SearchFilter
-          onSearch={handleSearch}
-          onFilter={handleFilter}
-          filters={[
-            {
-              label: 'Status',
-              key: 'status',
-              type: 'select',
-              options: [
-                { label: 'Active', value: 'active' },
-                { label: 'Triggered', value: 'triggered' },
-                { label: 'Inactive', value: 'inactive' },
-              ],
-            },
-            {
-              label: 'Type',
-              key: 'type',
-              type: 'select',
-              options: [
-                { label: 'Price Above', value: 'price_above' },
-                { label: 'Price Below', value: 'price_below' },
-                { label: 'Yield Change', value: 'yield_change' },
-              ],
-            },
-          ]}
-          placeholder="Search alerts..."
-        />
-
-        {/* Alerts List */}
-        <div className="space-y-3">
-          {filteredAlerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-lg font-bold font-mono text-primary">
-                      {alert.symbol}
-                    </span>
-                    <span
-                      className={cn(
-                        'px-2 py-1 rounded text-xs font-semibold',
-                        alert.status === 'active'
-                          ? 'bg-green-500/10 text-gain'
-                          : alert.status === 'triggered'
-                          ? 'bg-yellow-500/10 text-yellow-500'
-                          : 'bg-secondary text-muted-foreground'
-                      )}
-                    >
-                      {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
-                    </span>
-                  </div>
-
-                  <p className="text-muted-foreground text-sm mb-3">{alert.property}</p>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Current Price</p>
-                      <p className="font-bold text-foreground font-mono">
-                        ₹{alert.currentPrice.toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Trigger Price</p>
-                      <p className="font-bold text-foreground font-mono">
-                        ₹{alert.triggerPrice.toLocaleString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Type</p>
-                      <p className="font-semibold text-foreground">
-                        {alert.type.replace('_', ' ').toUpperCase()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Notifications</p>
-                      <p className="font-semibold text-foreground">
-                        {alert.notifications.join(', ').toUpperCase()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 ml-4">
-                  <Button
-                    className="p-2 bg-card border border-border hover:border-primary/40"
-                    title="Edit alert"
-                  >
-                    <Edit2 size={16} className="text-muted-foreground" />
-                  </Button>
-                  <Button
-                    onClick={() => handleDeleteAlert(alert.id)}
-                    className="p-2 bg-card border border-border hover:border-loss/40"
-                    title="Delete alert"
-                  >
-                    <Trash2 size={16} className="text-muted-foreground" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredAlerts.length === 0 && (
-          <div className="text-center py-12 bg-card border border-border rounded-xl">
-            <Bell size={32} className="mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">No alerts found</p>
+        ) : notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-[400px] border border-dashed rounded-2xl bg-card/30">
+            <Bell className="w-12 h-12 text-muted-foreground opacity-20 mb-4" />
+            <p className="text-lg font-bold">No Updates</p>
+            <p className="text-sm text-muted-foreground">You're all caught up.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {notifications.map(n => renderNotification(n))}
           </div>
         )}
       </div>

@@ -34,7 +34,10 @@ export async function generateAndDownloadInvoice(details: InvoiceDetails) {
         </div>
         <div style="text-align: right;">
           <h2 style="font-size: 42px; font-weight: 900; margin: 0; color: #0f172a; letter-spacing: -1px;">INVOICE</h2>
-          <p style="font-size: 14px; color: #64748b; margin-top: 8px;">Date: <span style="color: #0f172a; font-weight: 600;">${details.date}</span></p>
+          <div style="margin-top: 8px; background-color: #f8fafc; padding: 6px 12px; border-radius: 6px; display: inline-block; border: 1px solid #e2e8f0;">
+            <p style="font-size: 13px; color: #64748b; margin: 0;">Date: <span style="color: #0f172a; font-weight: 700;">${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: '2-digit' })}</span></p>
+            <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Time: <span style="color: #0f172a; font-weight: 700;">${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span></p>
+          </div>
         </div>
       </div>
 
@@ -45,15 +48,15 @@ export async function generateAndDownloadInvoice(details: InvoiceDetails) {
           <p style="font-size: 16px; font-weight: 600; color: #0f172a; margin: 0; word-break: break-all;">${details.email}</p>
         </div>
         
-        <div style="background-color: #f8fafc; padding: 24px; border-radius: 16px; width: 45%;">
-          <p style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 700; margin: 0 0 8px 0; letter-spacing: 1px;">Payment Details</p>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="font-size: 14px; color: #64748b;">Order ID:</span>
-            <span style="font-size: 14px; font-family: monospace; color: #0f172a; font-weight: 600;">${details.orderId}</span>
+        <div style="background-color: #f0fdf4; padding: 24px; border-radius: 16px; width: 45%; border: 1px solid #bbf7d0;">
+          <p style="font-size: 12px; color: #166534; text-transform: uppercase; font-weight: 700; margin: 0 0 12px 0; letter-spacing: 1px;">Payment Details</p>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;">
+            <span style="font-size: 13px; color: #166534; font-weight: 600;">Transaction ID:</span>
+            <span style="font-size: 14px; font-family: monospace; color: #14532d; font-weight: 800; background-color: #dcfce7; padding: 2px 6px; border-radius: 4px;">${details.paymentId}</span>
           </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="font-size: 14px; color: #64748b;">Txn ID:</span>
-            <span style="font-size: 14px; font-family: monospace; color: #0f172a; font-weight: 600;">${details.paymentId}</span>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 13px; color: #166534; font-weight: 600;">Order Ref:</span>
+            <span style="font-size: 13px; font-family: monospace; color: #14532d; font-weight: 600;">${details.orderId}</span>
           </div>
         </div>
       </div>
