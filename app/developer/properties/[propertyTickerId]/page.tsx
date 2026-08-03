@@ -193,13 +193,26 @@ export default function DeveloperAnalyticsPage() {
     try {
       setSendingMsg(true)
       const userId = selectedInvestor.userId || selectedInvestor.id
+      const developerId = property?.developerInfo?.developerId || property?.developerId
+      const metadata: Record<string, any> = {
+        propertyId: property?.id || null,
+        propertyTicker: property?.symbol || null,
+        developerId: developerId || null,
+      }
+
+      const developerCompany = property?.developerInfo?.companyName || property?.companyName
+      if (developerCompany) metadata.developerCompany = developerCompany
+
+      const developerLogo = property?.developerInfo?.logo || property?.developerInfo?.companyLogo
+      if (developerLogo) metadata.developerLogo = developerLogo
+
       await createNotification(
         userId,
         'investor',
         'developer_message',
         `Message from ${property?.symbol || 'Developer'}`,
         messageText || 'Message from developer',
-        { propertyId: property?.id, propertyTicker: property?.symbol }
+        metadata
       )
       toast.success('Message sent to investor')
       setDialogOpen(false)
@@ -596,7 +609,7 @@ export default function DeveloperAnalyticsPage() {
               <p className="mt-2 text-sm">Once investors hold this asset, their portfolios will appear here.</p>
             </div>
           ) : (
-            <div className="mt-8 grid gap-6 xl:grid-cols-2">
+            <div className="mt-8 grid gap-6 xl:grid-cols-1">
               {detailedInvestors.map((inv) => (
                 <Card key={inv.userId || inv.id} className="w-full overflow-hidden rounded-[2rem] border border-border/60 bg-background shadow-sm">
                   <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)] p-6 w-full">

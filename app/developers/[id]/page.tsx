@@ -28,73 +28,78 @@ export default function PublicDeveloperProfilePage() {
   useEffect(() => {
     if (!devIdParam) return
 
-    let unsubscribeProps: (() => void) | null = null
+    let unsubscribeByDeveloperId: (() => void) | null = null
+    let unsubscribeByDeveloperInfo: (() => void) | null = null
+    const propertyMap = new Map<string, Property>()
+    let currentDevData: any = null
+
+    const normalizeDeveloperFromProperty = (firstProp: any) => {
+      const info = firstProp.developerInfo || {}
+      return {
+        developerId: devIdParam,
+        companyName: info.companyName || firstProp.companyName || `${devIdParam} Developments`,
+        name: info.contactPerson || firstProp.developerName || 'Authorized Representative',
+        email: info.email || firstProp.developerEmail || 'contact@developer.com',
+        phone: info.mobile || firstProp.developerPhone || '+91 98765 43210',
+        officeAddress: firstProp.location?.fullAddress || firstProp.address || `${firstProp.city || 'Mumbai'}, India`,
+        yearsEstablished: '12+ Years',
+        partnerSince: '2024',
+        verified: true,
+      }
+    }
+
+    const updateProperties = () => {
+      const propertiesArray = Array.from(propertyMap.values())
+      setProperties(propertiesArray)
+
+      if (!currentDevData && propertiesArray.length > 0) {
+        currentDevData = normalizeDeveloperFromProperty(propertiesArray[0])
+        setDeveloper(currentDevData)
+      }
+    }
 
     const loadDeveloperData = async () => {
       setIsLoading(true)
 
       try {
-        let devData: any = null
-
         const devQuery = query(collection(db, 'developers'), where('developerId', '==', devIdParam))
         const devSnap = await getDocs(devQuery)
         if (!devSnap.empty) {
-          devData = { id: devSnap.docs[0].id, ...devSnap.docs[0].data() }
+          currentDevData = { id: devSnap.docs[0].id, ...devSnap.docs[0].data() }
         }
 
-        if (!devData) {
+        if (!currentDevData) {
           const userQuery = query(collection(db, 'users'), where('developerId', '==', devIdParam))
           const userSnap = await getDocs(userQuery)
           if (!userSnap.empty) {
-            devData = { id: userSnap.docs[0].id, ...userSnap.docs[0].data() }
+            currentDevData = { id: userSnap.docs[0].id, ...userSnap.docs[0].data() }
           }
         }
 
-        const developerIdToMatch = devData?.developerId || devIdParam
+        if (!currentDevData) {
+          const developerDoc = await getDoc(doc(db, 'users', devIdParam))
+          if (developerDoc.exists()) {
+            currentDevData = { id: developerDoc.id, ...developerDoc.data() }
+          }
+        }
 
-        const propsQuery = query(collection(db, 'properties'))
-        unsubscribeProps = onSnapshot(propsQuery, (snap) => {
-          const allProps = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Property))
-          const matchedProps = allProps.filter((p) => {
-            const propDevId = p.developerId || p.developerInfo?.developerId || p.globalId?.split('-')[0]
-            return propDevId === developerIdToMatch
+        setDeveloper(currentDevData)
+
+        const developerIdToMatch = currentDevData?.developerId || devIdParam
+
+        const propertiesByDevIdQuery = query(collection(db, 'properties'), where('developerId', '==', developerIdToMatch))
+        const propertiesByDeveloperInfoQuery = query(collection(db, 'properties'), where('developerInfo.developerId', '==', developerIdToMatch))
+
+        const handleSnapshot = (snap: any) => {
+          snap.docs.forEach((doc: any) => {
+            propertyMap.set(doc.id, { id: doc.id, ...doc.data() } as Property)
           })
-
-          setProperties(matchedProps)
-
-          if (!devData && matchedProps.length > 0) {
-            const firstProp = matchedProps[0] as any
-            const info = firstProp.developerInfo || {}
-            devData = {
-              developerId: developerIdToMatch,
-              companyName: info.companyName || firstProp.companyName || `${developerIdToMatch} Developers`,
-              name: info.contactPerson || 'Authorized Representative',
-              email: info.email || 'contact@developer.com',
-              phone: info.mobile || '+91 98765 43210',
-              officeAddress: firstProp.location?.fullAddress || `${firstProp.city || 'Mumbai'}, India`,
-              yearsEstablished: '12+ Years',
-              partnerSince: '2024',
-              verified: true,
-            }
-          }
-
-          if (!devData) {
-            devData = {
-              developerId: devIdParam,
-              companyName: `${devIdParam} Developments`,
-              name: 'Developer Representative',
-              email: 'contact@milestono.com',
-              phone: '+91 98765 43210',
-              officeAddress: 'Mumbai, Maharashtra, India',
-              yearsEstablished: '10+ Years',
-              partnerSince: '2024',
-              verified: true,
-            }
-          }
-
-          setDeveloper(devData)
+          updateProperties()
           setIsLoading(false)
-        })
+        }
+
+        unsubscribeByDeveloperId = onSnapshot(propertiesByDevIdQuery, handleSnapshot)
+        unsubscribeByDeveloperInfo = onSnapshot(propertiesByDeveloperInfoQuery, handleSnapshot)
       } catch (err) {
         console.error('Error loading developer details:', err)
         setIsLoading(false)
@@ -104,7 +109,8 @@ export default function PublicDeveloperProfilePage() {
     loadDeveloperData()
 
     return () => {
-      unsubscribeProps?.()
+      unsubscribeByDeveloperId?.()
+      unsubscribeByDeveloperInfo?.()
     }
   }, [devIdParam])
 
