@@ -6,7 +6,7 @@ import { Users, Building2, TrendingUp, Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, onSnapshot, documentId } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Property, Investment, User } from '@/lib/types'
 
@@ -59,7 +59,7 @@ export default function DevInvestorsPage() {
             
             for (let i = 0; i < userIds.length; i += 10) {
               const chunk = userIds.slice(i, i + 10)
-              const q = query(collection(db, 'users'), where('id', 'in', chunk))
+              const q = query(collection(db, 'users'), where(documentId(), 'in', chunk))
               const usersSnap = await getDocs(q)
               allUsers = [...allUsers, ...usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as User))]
             }

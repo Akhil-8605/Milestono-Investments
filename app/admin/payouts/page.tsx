@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
-import { collection, query, onSnapshot, doc, updateDoc, getDocs, where } from 'firebase/firestore'
+import { collection, query, onSnapshot, doc, updateDoc, getDocs, where, documentId } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { PayoutRequest, User } from '@/lib/types'
 import { format } from 'date-fns'
@@ -42,7 +42,7 @@ export default function AdminPayoutsPage() {
       
       for (let i = 0; i < devIds.length; i += 10) {
         const chunk = devIds.slice(i, i + 10)
-        const q = query(collection(db, 'users'), where('id', 'in', chunk))
+        const q = query(collection(db, 'users'), where(documentId(), 'in', chunk))
         const usersSnap = await getDocs(q)
         allUsers = [...allUsers, ...usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as User))]
       }

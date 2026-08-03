@@ -207,6 +207,8 @@ export interface PayoutRequest {
 }
 
 export interface Transaction {
+  investorName: string
+  investorPhoto: any
   id: string
   userId: string
   propertyId: string

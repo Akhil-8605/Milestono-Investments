@@ -7,10 +7,10 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Property } from '@/lib/types'
-import { Building2, Loader2, IndianRupee, ShieldCheck, Upload, Landmark, CheckCircle2, FileImage } from 'lucide-react'
+import { Building2, Loader2, IndianRupee, ShieldCheck, Upload, Landmark, CheckCircle2, FileImage, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
-import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -126,13 +126,22 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         description: isToken ? `Token Payment for ${property.symbol}` : `Full Purchase of ${property.symbol}`,
         order_id: orderData.order.id, // Pass the generated order ID
         handler: async function (response: any) {
-          if (isToken) {
-            setTokenPaid(true)
-            toast.success(`Token amount of ₹${tokenAmount.toLocaleString()} paid successfully!`)
+          try {
+            if (isToken) {
+              // Record token payment and mark NEFT verification pending
+              await finalizeTransaction('neft_with_token', tokenAmount, response.razorpay_payment_id)
+              setTokenPaid(true)
+              toast.success(`Token amount of ₹${tokenAmount.toLocaleString()} paid successfully!`)
+            } else {
+              // Full direct purchase
+              await finalizeTransaction('razorpay_direct', amountToPay, response.razorpay_payment_id)
+            }
+          } catch (err) {
+            console.error(err)
+            toast.error('Error finalizing payment')
             setIsProcessing(false)
-          } else {
-            // Full direct purchase
-            await finalizeTransaction('razorpay_direct', amountToPay, response.razorpay_payment_id)
+          } finally {
+            setIsProcessing(false)
           }
         },
         prefill: {
@@ -189,6 +198,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
     }
     setIsProcessing(true)
     await finalizeTransaction('neft_with_token', tokenAmount, `mock_rzp_token_${Date.now()}`)
+    setIsProcessing(false)
   }
 
   const generateInvoice = (transactionId: string, amount: number, isToken: boolean) => {
@@ -201,7 +211,36 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
       setTimeout(() => {
         const element = document.getElementById('aesthetic-invoice')
         if (element) {
-          html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
+          html2canvas(element, { 
+            scale: 2, 
+            backgroundColor: '#ffffff', 
+            useCORS: true,
+            onclone: (clonedDoc) => {
+              try {
+                // Replace unsupported color functions in <style> tags
+                const styleElements = clonedDoc.querySelectorAll('style')
+                styleElements.forEach(styleEl => {
+                  if (styleEl.textContent) {
+                    styleEl.textContent = styleEl.textContent.replace(/(?:lab|oklab|oklch)\([^)]+\)/gi, 'rgb(0,0,0)')
+                  }
+                })
+
+                // Remove external stylesheets to avoid unsupported functions from being parsed
+                const linkSheets = clonedDoc.querySelectorAll('link[rel="stylesheet"]')
+                linkSheets.forEach(link => link.remove())
+
+                // Sanitize inline style attributes on all elements
+                const styledEls = clonedDoc.querySelectorAll('[style]')
+                styledEls.forEach(el => {
+                  const s = el.getAttribute('style') || ''
+                  const newS = s.replace(/(?:lab|oklab|oklch)\([^)]+\)/gi, 'rgb(0,0,0)')
+                  if (newS !== s) el.setAttribute('style', newS)
+                })
+              } catch (err) {
+                console.warn('Failed to sanitize cloned document for html2canvas', err)
+              }
+            }
+          }).then(canvas => {
             const imgData = canvas.toDataURL('image/png')
             const pdf = new jsPDF('p', 'mm', 'a4')
             const pdfWidth = pdf.internal.pageSize.getWidth()
@@ -209,6 +248,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
             pdf.save(`Invoice_${property?.symbol}_${invoiceDetails.txId.slice(-6).toUpperCase()}.pdf`)
             toast.success('Invoice downloaded automatically.')
+            setShowInvoiceModal(false)
           }).catch(console.error)
         }
       }, 1000)
@@ -219,6 +259,9 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
     try {
       const txRef = await addDoc(collection(db, 'transactions'), {
         userId: user!.id,
+        investorName: user!.name || null,
+        investorEmail: (user as any).email || null,
+        investorPhoto: (user as any).photoURL || null,
         propertyId: property!.id,
         propertyName: property!.name,
         propertySymbol: property!.symbol,
@@ -233,40 +276,78 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         razorpayPaymentId: rzpPaymentId || null,
         verifiedByAdmin: method === 'razorpay_direct',
         status: method === 'neft_with_token' ? 'pending_neft' : 'completed',
-        neftData: method === 'neft_with_token' ? neftData : null,
+        neftDetails: method === 'neft_with_token' ? neftData : null,
         timestamp: serverTimestamp()
       })
       
-      import('firebase/firestore').then(async ({ doc, updateDoc, increment }) => {
-        const propRef = doc(db, 'properties', property!.id)
-        if (method === 'razorpay_direct') {
-          await addDoc(collection(db, 'investments'), {
-            userId: user!.id,
-            propertyId: property!.id,
-            unitsOwned: units,
-            unitPrice: currentPrice,
-            amountInvested: totalAmount,
-            currentValue: totalAmount,
-            returns: 0,
-            returnPercentage: 0,
-            dayChange: 0,
-            dayChangePct: 0,
-            purchasedAt: serverTimestamp(),
-            status: 'active'
-          })
-          await updateDoc(propRef, { unitsSold: increment(units) }).catch(console.error)
-        } else if (method === 'neft_with_token') {
-          await updateDoc(propRef, { unitsOnHold: increment(units) }).catch(console.error)
-        }
-      })
+      const propRef = doc(db, 'properties', property!.id)
+      if (method === 'razorpay_direct') {
+        await addDoc(collection(db, 'investments'), {
+          userId: user!.id,
+          propertyId: property!.id,
+          unitsOwned: units,
+          unitPrice: currentPrice,
+          amountInvested: totalAmount,
+          currentValue: totalAmount,
+          returns: 0,
+          returnPercentage: 0,
+          dayChange: 0,
+          dayChangePct: 0,
+          purchasedAt: serverTimestamp(),
+          status: 'active'
+        })
+        await updateDoc(propRef, { 
+          unitsSold: increment(units),
+          unitsAvailable: increment(-units)
+        }).catch(console.error)
+      } else if (method === 'neft_with_token') {
+        await updateDoc(propRef, { unitsOnHold: increment(units) }).catch(console.error)
+      }
+
+      // Add Investor Notification
+      await addDoc(collection(db, 'notifications'), {
+        userId: user!.id,
+        role: 'investor',
+        type: method === 'razorpay_direct' ? 'payment_successful' : 'neft_submitted',
+        title: method === 'razorpay_direct' ? 'Investment Confirmed' : 'Token Paid & NEFT Submitted',
+        message: method === 'razorpay_direct' 
+          ? `Purchased ${units} units of ${property!.name} (${property!.symbol}) for ₹${totalAmount.toLocaleString('en-IN')}.`
+          : `Token payment of ₹${(tokenPaidAmt || 0).toLocaleString('en-IN')} received for ${property!.name}. NEFT verification pending.`,
+        propertySymbol: property!.symbol,
+        propertyId: property!.id,
+        read: false,
+        createdAt: serverTimestamp()
+      }).catch(console.error)
+
+      // Add Developer Notification
+      if (property?.developerId) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: property.developerId,
+          role: 'developer',
+          type: 'investment_received',
+          title: 'New Property Investment Received',
+          message: `${user!.name || 'An investor'} purchased ${units} units of ${property.name} (${property.symbol}) totaling ₹${totalAmount.toLocaleString('en-IN')}.`,
+          propertyId: property.id,
+          propertySymbol: property.symbol,
+          investorId: user!.id,
+          investorName: user!.name || 'Investor',
+          read: false,
+          createdAt: serverTimestamp()
+        }).catch(console.error)
+      }
       
-      toast.success(method === 'neft_with_token' ? 'Token Paid & NEFT Details Submitted! Units placed on hold.' : 'Investment Successful! Added to Portfolio.')
+      toast.success(method === 'neft_with_token' ? 'Token Paid & NEFT Details Submitted! Redirecting to orders...' : 'Investment Successful! Redirecting to orders...')
       
       if (method === 'razorpay_direct' && txRef?.id) {
         generateInvoice(txRef.id, totalAmount, false)
       } else if (method === 'neft_with_token' && tokenPaidAmt && txRef?.id) {
         generateInvoice(txRef.id, tokenPaidAmt, true)
       }
+
+      // Automatically navigate to /investor/orders after short delay
+      setTimeout(() => {
+        router.push('/investor/orders')
+      }, 3000)
 
     } catch (err) {
       console.error(err)
@@ -285,11 +366,21 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
     )
   }
 
-  const availableUnits = property.unitsAvailable || (property.totalUnits - (property.unitsSold || 0))
+  const availableUnits = Math.max(0, (property.totalUnits || 0) - (property.unitsSold || 0) - (property.unitsOnHold || 0))
 
   return (
     <AppLayout requiredRole="investor" title={`Buy ${property.symbol}`}>
       <div className="min-h-screen bg-background relative selection:bg-primary/30 pb-32">
+        {/* SOLD OUT OVERLAY */}
+        {availableUnits <= 0 && (
+          <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-md flex items-center justify-center overflow-hidden pointer-events-auto">
+            <div className="bg-red-600/95 text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.5em] text-2xl md:text-5xl py-6 px-[200vw] -rotate-12 shadow-[0_0_100px_rgba(220,38,38,0.6)] border-y-8 border-red-500 whitespace-nowrap flex items-center gap-6 justify-center">
+              <XCircle className="w-10 h-10 md:w-16 md:h-16 shrink-0" />
+              SOLD OUT - NO UNITS AVAILABLE
+              <XCircle className="w-10 h-10 md:w-16 md:h-16 shrink-0" />
+            </div>
+          </div>
+        )}
         {/* Advanced Ambient Glow */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
           <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-primary/10 blur-[150px] rounded-full mix-blend-multiply dark:mix-blend-screen" />

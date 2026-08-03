@@ -40,21 +40,37 @@ export async function GET(req: NextRequest, context: { params: Promise<{ propert
       let name = 'Unknown Investor'
       let email = ''
       let phone = ''
+      let profilePhoto = ''
+      
       try {
-        const userDoc = await db.collection('users').doc(userId).get()
-        if (userDoc.exists) {
-          const userData = userDoc.data()
-          name = userData?.name || name
-          email = userData?.email || ''
-          phone = userData?.phone || ''
+        // First try investors collection for complete profile
+        const investorDoc = await db.collection('investors').doc(userId).get()
+        if (investorDoc.exists) {
+          const invData = investorDoc.data()
+          name = invData?.fullName || invData?.name || name
+          email = invData?.email || ''
+          phone = invData?.phone || ''
+          profilePhoto = invData?.profilePhoto || ''
+        } else {
+          // Fallback to users collection
+          const userDoc = await db.collection('users').doc(userId).get()
+          if (userDoc.exists) {
+            const userData = userDoc.data()
+            name = userData?.name || name
+            email = userData?.email || ''
+            phone = userData?.phone || ''
+            profilePhoto = userData?.profilePhoto || ''
+          }
         }
       } catch (e) { /* ignore */ }
 
       investors.push({
+        id: userId,
         userId,
         name,
         email,
         phone,
+        profilePhoto,
         unitsOwned: stats.units,
         amountInvested: stats.invested
       })

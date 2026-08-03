@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card'
 import { ChevronRight, ChevronLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSession } from '@/components/shell/session-context'
+import type { Developer } from '@/lib/types'
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -84,15 +85,63 @@ function DeveloperListPropertyForm() {
           )
           const snap = await getDocs(q)
           if (!snap.empty) {
-            const doc = snap.docs[0]
-            const data = doc.data()
-            setEditPropertyId(doc.id)
+            const docSnap = snap.docs[0]
+            const data = docSnap.data()
+            setEditPropertyId(docSnap.id)
             
-            if (data.rawFormData) {
-              methods.reset(data.rawFormData)
-            } else {
-              toast.error('Old property format detected. Some fields might be missing.')
+            const formDataToReset = data.rawFormData || {
+              basicDetails: {
+                propertyName: data.name || data.basicDetails?.propertyName || '',
+                propertyType: data.type || data.basicDetails?.propertyType || 'Apartment',
+                description: data.description || data.basicDetails?.description || 'No description provided.',
+                constructionStatus: data.basicDetails?.constructionStatus || 'Ready',
+                tickerId: data.symbol || data.basicDetails?.tickerId || '',
+              },
+              specifications: data.specifications || {
+                areaType: 'Carpet Area',
+                areaValue: data.areaValue || 1000,
+                amenities: data.amenities || ['Security'],
+              },
+              location: data.location || {
+                country: 'India',
+                state: data.state || '',
+                city: data.city || '',
+                areaLocality: data.areaLocality || '',
+                fullAddress: data.address || '',
+                latitude: data.latitude || 28.6139,
+                longitude: data.longitude || 77.2090,
+                pincode: data.pincode || '',
+              },
+              investmentInfo: data.investmentInfo || {
+                totalPropertyPrice: data.totalValue || (data.totalUnits * data.unitPrice) || 0,
+                totalInvestmentUnits: data.totalUnits || 0,
+                minimumInvestment: data.investmentInfo?.minimumInvestment || 1,
+                rentalYield: data.expectedYield || 0,
+                expectedAppreciation: 0,
+              },
+              media: data.media || {
+                images: data.images || [],
+                masterPlan: '',
+                floorPlan: '',
+                brochurePdf: '',
+                documentsPdf: '',
+              },
+              legalVerification: data.legalVerification || {
+                reraNumber: data.reraNumber || 'N/A',
+                propertyRegistrationNumber: data.propertyRegistrationNumber || 'N/A',
+                ownershipProofUrl: data.documents?.termsUrl || '',
+                occupancyCertificateUrl: data.documents?.termsUrl || '',
+              },
+              developerInfo: data.developerInfo || {
+                companyName: data.companyName || user?.name || '',
+                developerId: data.globalId?.split('-')[0] || (user as Developer)?.developerId || 'DEV001',
+                contactPerson: user?.name || '',
+                mobile: user?.phone || '0000000000',
+                email: user?.email || '',
+              }
             }
+
+            methods.reset(formDataToReset)
           }
         } catch (err) {
           toast.error('Failed to load property for editing')
@@ -107,6 +156,14 @@ function DeveloperListPropertyForm() {
 
   const { handleSubmit, trigger, formState: { errors } } = methods
 
+  const onFormError = (validationErrors: any) => {
+    console.error('[Submit Validation Errors]:', validationErrors)
+    const errorSections = Object.keys(validationErrors)
+    if (errorSections.length > 0) {
+      toast.error(`Validation error in section(s): ${errorSections.join(', ')}. Please check your inputs.`)
+    }
+  }
+
   const handleNext = async () => {
     const stepId = STEPS[currentStep].id as keyof PropertyFormValues
     const isStepValid = await trigger(stepId)
@@ -116,7 +173,7 @@ function DeveloperListPropertyForm() {
     } else {
       toast.error(`Please fix the errors in the ${STEPS[currentStep].title} section.`)
       
-      // Attempt to scroll to the first error field
+      // Scroll to the first error field
       setTimeout(() => {
         const firstErrorElement = document.querySelector('[aria-invalid="true"], .text-red-500')
         if (firstErrorElement) {
@@ -150,11 +207,13 @@ function DeveloperListPropertyForm() {
         totalUnits: totalUnits,
         unitsAvailable: totalUnits,
         unitsSold: 0,
+        unitsOnHold: 0,
         unitPrice: unitPrice,
         developerId: user?.id,
         status: 'pending_approval',
+        adminMessage: null, // Reset rejection message on resubmission
+        updatedAt: new Date().toISOString(),
         globalId: `${data.developerInfo.developerId}-${data.basicDetails.tickerId}`,
-        createdAt: new Date().toISOString(),
         expectedYield: data.investmentInfo.rentalYield || 0,
         occupancyRate: 100,
         documents: {
@@ -182,13 +241,12 @@ function DeveloperListPropertyForm() {
           occupancyRate: 100,
           rentalIncome: (data.investmentInfo.rentalYield || 0) / 100 * data.investmentInfo.totalPropertyPrice
         },
-        // We also keep the raw data in case developer dashboard needs it for editing later
         rawFormData: data
       }
 
       if (isEditMode && editPropertyId) {
         await updateDoc(doc(db, 'properties', editPropertyId), payload)
-        toast.success('Property updated successfully!')
+        toast.success('Property updated and resubmitted for review successfully!')
       } else {
         const res = await fetch('/api/properties', {
           method: 'POST',
@@ -223,7 +281,7 @@ function DeveloperListPropertyForm() {
       <div className="p-6 max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
         
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">List a New Property</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{isEditMode ? 'Edit & Resubmit Property' : 'List a New Property'}</h1>
           <p className="text-muted-foreground text-sm mt-1">Provide comprehensive details to list your property on the fractional marketplace.</p>
         </div>
 
@@ -249,7 +307,7 @@ function DeveloperListPropertyForm() {
 
         <Card className="p-6 border shadow-sm">
           <FormProvider {...methods}>
-            <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit as any, onFormError)} className="space-y-6">
               
               <div className="min-h-[400px]">
                 {currentStep === 0 && <BasicDetails />}

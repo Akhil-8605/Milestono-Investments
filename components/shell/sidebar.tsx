@@ -33,6 +33,8 @@ const DEVELOPER_NAV: NavItem[] = [
   { label: 'List Property', href: '/developer/list', icon: PlusCircle },
   { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
   { label: 'Transactions', href: '/developer/transactions', icon: Receipt },
+  { label: 'Relations', href: '/developer/relations', icon: Users },
+  { label: 'Alerts', href: '/developer/alerts', icon: Bell },
   { label: 'Profile', href: '/developer/profile', icon: User },
 ]
 

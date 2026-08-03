@@ -7,6 +7,8 @@ export type NotificationType =
   | 'investor_inquiry'
   | 'investor_watchlisted'
   | 'developer_reply'
+  | 'developer_message'
+  | 'investment_received'
   | 'order_placed'
   | 'payment_successful'
   | 'neft_submitted'
@@ -38,13 +40,18 @@ export async function createNotification(
   message: string,
   metadata?: any
 ) {
+  if (!userId) {
+    console.warn('createNotification called with invalid or undefined userId. Skipping notification creation.', { role, type, title })
+    return
+  }
+
   try {
     await addDoc(collection(db, 'notifications'), {
       userId,
-      role,
-      type,
-      title,
-      message,
+      role: role || 'investor',
+      type: type || 'general',
+      title: title || 'Notification',
+      message: message || '',
       read: false,
       metadata: metadata || null,
       createdAt: serverTimestamp()

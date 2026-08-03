@@ -112,7 +112,15 @@ export async function generateAndDownloadInvoice(details: InvoiceDetails) {
       scale: 2, // High resolution
       useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      onclone: (clonedDoc) => {
+        const styleElements = clonedDoc.querySelectorAll('style')
+        styleElements.forEach(styleEl => {
+          if (styleEl.textContent) {
+            styleEl.textContent = styleEl.textContent.replace(/(?:lab|oklab|oklch)\([^)]+\)/gi, '#000000')
+          }
+        })
+      }
     })
 
     let invoiceUrl: string | null = null

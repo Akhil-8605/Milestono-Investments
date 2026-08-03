@@ -421,13 +421,14 @@ function MarketContent() {
                 </td>
               </tr>
             ) : (
-              sorted.map((p) => {
+              sorted.map((p: any) => {
                 const isFlat = p.marketData.changePct === 0
                 const up = p.marketData.changePct > 0
+                const availUnits = Math.max(0, (p.totalUnits || 0) - (p.unitsSold || 0) - (p.unitsOnHold || 0))
                 const pct = p.totalUnits > 0
-                  ? ((p.totalUnits - p.unitsAvailable) / p.totalUnits) * 100
+                  ? ((p.totalUnits - availUnits) / p.totalUnits) * 100
                   : 0
-                const sparkData = p.marketData.priceHistory.map(h => h.price)
+                const sparkData = p.marketData.priceHistory.map((h: any) => h.price)
 
                 return (
                   <tr
@@ -527,7 +528,7 @@ function MarketContent() {
 
                     {/* Units available */}
                     <td className="px-4 py-3.5 text-right hidden xl:table-cell">
-                      <div className="text-foreground text-sm num">{p.unitsAvailable.toLocaleString()}</div>
+                      <div className="text-foreground text-sm num">{availUnits.toLocaleString()}</div>
                       <div className="w-16 ml-auto mt-1 bg-muted rounded-full h-1">
                         <div
                           className="h-1 rounded-full bg-[#f59e0b]"

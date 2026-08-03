@@ -24,15 +24,42 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Hydrate from sessionStorage on mount
-    try {
-      const token = sessionStorage.getItem('milestono_investments_token')
-      const raw = sessionStorage.getItem('milestono_user')
-      if (raw) setUserState(JSON.parse(raw))
-    } catch {
-      // ignore parse errors
+    async function hydrateSession() {
+      try {
+        const raw = sessionStorage.getItem('milestono_user')
+        if (!raw) {
+          setLoading(false)
+          return
+        }
+
+        const parsed = JSON.parse(raw)
+        let enrichedUser = parsed
+
+        try {
+          const response = await fetch(`/api/profile?userId=${parsed.id || parsed.email}`)
+          if (response.ok) {
+            const json = await response.json()
+            if (json.success && json.data) {
+              enrichedUser = {
+                ...parsed,
+                ...json.data,
+                role: json.data.role || parsed.role || 'investor',
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to hydrate session profile:', err)
+        }
+
+        setUserState(enrichedUser)
+      } catch (err) {
+        console.warn('Failed to hydrate session user:', err)
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+
+    hydrateSession()
   }, [])
 
   const setUser = (u: AnyUser | null) => {

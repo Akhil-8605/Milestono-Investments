@@ -385,8 +385,9 @@ const MiniChart = ({ isUp }: { isUp: boolean }) => (
                     const changePct = p.marketData?.changePct || 0
                     const isFlat = changePct === 0
                     const up = changePct > 0
+                    const availUnits = Math.max(0, (p.totalUnits || 0) - (p.unitsSold || 0) - (p.unitsOnHold || 0))
                     const pct = p.totalUnits > 0
-                      ? (((p.unitsSold || 0)) / p.totalUnits) * 100
+                      ? ((p.totalUnits - availUnits) / p.totalUnits) * 100
                       : 0
                     const sparkData = p.marketData?.priceHistory?.map((h: any) => h.price) || []
                     const marketCap = (p.marketData?.currentPrice || p.unitPrice) * (p.totalUnits || 0)

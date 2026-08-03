@@ -7,6 +7,7 @@ import { SessionProvider } from '@/components/shell/session-context'
 import { ThemeProvider } from '@/components/shell/theme-provider'
 import { Toaster } from '@/components/shell/toast-provider'
 import { Ticker } from '@/components/global/Ticker'
+import ErrorBoundary from '@/components/shell/error-boundary'
 
 const inter = Inter({
   subsets: ['latin'],

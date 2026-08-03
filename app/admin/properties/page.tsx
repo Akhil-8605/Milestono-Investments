@@ -166,9 +166,9 @@ export default function AdminPropertiesPage() {
                             <Button variant="outline" size="sm" className="h-8 gap-2 bg-muted/50 hover:bg-muted font-bold text-xs shadow-sm border-border" />
                           }>
                             <Briefcase className="w-3.5 h-3.5 text-primary" />
-                            {p.developerInfo?.companyName || p.developerId || 'VISHWA'}
+                            {p.developerId ? p.developerId.substring(0, 6).toUpperCase() : 'VISHWA'}
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden bg-transparent border-0 shadow-2xl">
+                          <DialogContent showCloseButton={false} className="sm:max-w-[425px] p-0 overflow-hidden bg-transparent border-0 shadow-2xl">
                             <div className="bg-card w-full h-[500px] flex flex-col relative rounded-3xl overflow-hidden border border-border/50">
                               <div className="h-32 bg-gradient-to-br from-primary to-indigo-600 relative">
                                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
@@ -184,7 +184,7 @@ export default function AdminPropertiesPage() {
                               </div>
                               <div className="mt-20 px-8 pb-8 text-center flex-1 flex flex-col justify-between">
                                 <div>
-                                  <h3 className="text-2xl font-black text-foreground mb-1">{p.developerInfo?.companyName || p.developerId || 'VISHWA'}</h3>
+                                  <h3 className="text-2xl font-black text-foreground mb-1">{p.developerInfo?.companyName || (p.developerId ? p.developerId.substring(0, 6).toUpperCase() : 'VISHWA')}</h3>
                                   <p className="text-sm text-primary font-bold tracking-widest uppercase mb-4 flex items-center justify-center gap-1">
                                     <BadgeCheck className="w-4 h-4" /> Verified Developer
                                   </p>
@@ -217,21 +217,46 @@ export default function AdminPropertiesPage() {
                         ₹{((p.marketData?.currentPrice || p.unitPrice || 0) * (p.totalUnits || 0) / 10000000).toFixed(2)} Cr
                       </td>
                       <td className="px-5 py-3 text-right">
-                        {p.marketData?.appreciationPct !== undefined ? (
-                          <div className="flex flex-col items-end">
-                            <span className={p.marketData.appreciationPct >= 0 ? "text-xs font-bold text-emerald-500" : "text-xs font-bold text-rose-500"}>
-                              {p.marketData.appreciationPct >= 0 ? '+' : ''}{p.marketData.appreciationPct.toFixed(2)}%
-                            </span>
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current</span>
-                          </div>
-                        ) : p.appreciationSchedule ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-xs font-bold text-primary">+{p.appreciationSchedule.percentage}%</span>
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/50 px-2 py-1 rounded-md border border-border/50">Unset</span>
-                        )}
+                        {(() => {
+                          const currentPrice = p.marketData?.currentPrice || p.unitPrice || 0;
+                          const initialPrice = p.unitPrice || 0;
+                          const hasAppreciation = p.marketData?.currentPrice !== undefined && initialPrice > 0;
+                          
+                          if (hasAppreciation) {
+                            const appreciationPct = ((currentPrice - initialPrice) / initialPrice) * 100;
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className={appreciationPct >= 0 ? "text-xs font-bold text-emerald-500" : "text-xs font-bold text-rose-500"}>
+                                  {appreciationPct > 0 ? '+' : ''}{appreciationPct.toFixed(2)}%
+                                </span>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current</span>
+                              </div>
+                            );
+                          } else if (p.marketData?.appreciationPct !== undefined) {
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className={p.marketData.appreciationPct >= 0 ? "text-xs font-bold text-emerald-500" : "text-xs font-bold text-rose-500"}>
+                                  {p.marketData.appreciationPct >= 0 ? '+' : ''}{p.marketData.appreciationPct.toFixed(2)}%
+                                </span>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current</span>
+                              </div>
+                            );
+                          } else if (p.appreciationSchedule) {
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className="text-xs font-bold text-primary">+{p.appreciationSchedule.percentage}%</span>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target</span>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className="text-xs font-bold text-emerald-500">0.00%</span>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current</span>
+                              </div>
+                            );
+                          }
+                        })()}
                       </td>
                       <td className="px-5 py-3 text-center">
                         <Button 

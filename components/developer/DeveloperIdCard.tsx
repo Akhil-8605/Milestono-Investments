@@ -38,7 +38,15 @@ export function DeveloperIdCard({
         scale: 3, 
         useCORS: true, 
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          const styleElements = clonedDoc.querySelectorAll('style')
+          styleElements.forEach(styleEl => {
+            if (styleEl.textContent) {
+              styleEl.textContent = styleEl.textContent.replace(/(?:lab|oklab|oklch)\([^)]+\)/gi, '#000000')
+            }
+          })
+        }
       })
       const dataUrl = canvas.toDataURL('image/png', 1.0)
       const link = document.createElement('a')

@@ -116,6 +116,20 @@ export default function PropertyDetailsPage() {
 
       if (property) {
         await logPropertyWatchlist(property.id, property.symbol, property.developerId, user, 'add')
+        if (property.developerId) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: property.developerId,
+            role: 'developer',
+            type: 'watchlist_alert',
+            title: 'Property Shortlisted',
+            message: `${user.name || 'An investor'} added ${property.name} (${property.symbol}) to their watchlist.`,
+            propertyId: property.id,
+            propertySymbol: property.symbol,
+            investorId: user.id,
+            read: false,
+            createdAt: serverTimestamp()
+          }).catch(console.error)
+        }
       }
       toast.success('Added to watchlist!')
     } catch (err) {
@@ -183,6 +197,8 @@ export default function PropertyDetailsPage() {
   const inv = property.investmentInfo || rawForm.investmentInfo || null
   const dev = property.developerInfo || rawForm.developerInfo || null
   const basicDetails = property.basicDetails || rawForm.basicDetails || null
+
+  const availUnits = Math.max(0, (property?.totalUnits || 0) - (property?.unitsSold || 0) - (property?.unitsOnHold || 0))
 
   return (
     <AppLayout allowGuest hideSidebar title={property.name}>
@@ -626,7 +642,7 @@ export default function PropertyDetailsPage() {
                     </div>
                     <div className="flex justify-between items-center py-1 pt-4 border-t border-border/50 mt-2">
                       <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Available Depth</span>
-                      <span className="font-mono font-bold text-primary text-xl">{(property.unitsAvailable || 0).toLocaleString()}</span>
+                      <span className="font-mono font-bold text-primary text-xl">{availUnits.toLocaleString()}</span>
                     </div>
                   </div>
 

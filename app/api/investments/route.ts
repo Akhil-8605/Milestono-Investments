@@ -121,8 +121,9 @@ export async function POST(req: NextRequest) {
       if (property.status !== 'active') {
         throw new Error('Property is not available for investment')
       }
-      if (units > property.unitsAvailable) {
-        throw new Error(`Only ${property.unitsAvailable} units available`)
+      const availUnits = Math.max(0, (property.totalUnits || 0) - (property.unitsSold || 0) - (property.unitsOnHold || 0))
+      if (units > availUnits) {
+        throw new Error(`Only ${availUnits} units available`)
       }
 
       const unitPrice = property.marketData.currentPrice
@@ -180,7 +181,8 @@ export async function POST(req: NextRequest) {
       }
 
       t.update(propertyRef, {
-        unitsAvailable: property.unitsAvailable - units,
+        unitsSold: (property.unitsSold || 0) + units,
+        unitsAvailable: Math.max(0, (property.totalUnits || 0) - ((property.unitsSold || 0) + units) - (property.unitsOnHold || 0)),
         'marketData.volume': (property.marketData?.volume || 0) + units
       })
 
