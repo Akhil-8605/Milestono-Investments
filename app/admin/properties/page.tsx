@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { DeveloperIdCard } from '@/components/developer/DeveloperIdCard'
+import Link from 'next/link'
 
 export default function AdminPropertiesPage() {
   const router = useRouter()
@@ -22,6 +24,8 @@ export default function AdminPropertiesPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
 
+  const [developersMap, setDevelopersMap] = useState<Record<string, any>>({})
+
   useEffect(() => {
     setLoading(true)
     const unsub = onSnapshot(query(collection(db, 'properties'), where('status', '==', 'active')), (snap) => {
@@ -31,7 +35,16 @@ export default function AdminPropertiesPage() {
       toast.error('Failed to load properties')
       setLoading(false)
     })
-    return () => unsub()
+
+    const unsubDevs = onSnapshot(collection(db, 'developers'), (snap) => {
+      const devMap: Record<string, any> = {}
+      snap.docs.forEach(doc => {
+        devMap[doc.id] = { id: doc.id, ...doc.data() }
+      })
+      setDevelopersMap(devMap)
+    })
+
+    return () => { unsub(); unsubDevs(); }
   }, [])
 
   // Filter Logic
@@ -161,57 +174,40 @@ export default function AdminPropertiesPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        <Dialog>
-                          <DialogTrigger render={
-                            <Button variant="outline" size="sm" className="h-8 gap-2 bg-muted/50 hover:bg-muted font-bold text-xs shadow-sm border-border" />
-                          }>
-                            <Briefcase className="w-3.5 h-3.5 text-primary" />
-                            {p.developerId ? p.developerId.substring(0, 6).toUpperCase() : 'VISHWA'}
-                          </DialogTrigger>
-                          <DialogContent showCloseButton={false} className="sm:max-w-[425px] p-0 overflow-hidden bg-transparent border-0 shadow-2xl">
-                            <div className="bg-card w-full h-[500px] flex flex-col relative rounded-3xl overflow-hidden border border-border/50">
-                              <div className="h-32 bg-gradient-to-br from-primary to-indigo-600 relative">
-                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
-                              </div>
-                              <div className="absolute top-16 inset-x-0 flex justify-center">
-                                <div className="w-32 h-32 rounded-2xl bg-background border-4 border-card shadow-xl flex items-center justify-center overflow-hidden">
-                                  {p.developerInfo?.logoUrl ? (
-                                    <img src={p.developerInfo.logoUrl} alt="Developer Logo" className="w-full h-full object-cover" />
-                                  ) : (
-                                    <Building2 className="w-16 h-16 text-muted-foreground opacity-50" />
-                                  )}
+                        {(() => {
+                          const devData = developersMap[p.developerId] || {}
+                          const shortId = devData.developerId || p.developerId?.substring(0, 6)?.toUpperCase()
+                          const companyName = devData.companyName || 'Milestono Developer'
+                          
+                          return (
+                            <Dialog>
+                              <DialogTrigger render={
+                                <Button variant="ghost" size="sm" className="h-8 gap-2 bg-muted/50 hover:bg-muted font-bold text-xs shadow-sm border-border" />
+                              }>
+                                <Briefcase className="w-3.5 h-3.5 text-primary" />
+                                {shortId}
+                              </DialogTrigger>
+                              <DialogContent showCloseButton={false} className="sm:max-w-5xl p-0 overflow-hidden bg-transparent border-none shadow-none flex flex-col items-center">
+                                <DeveloperIdCard
+                                  developerId={shortId}
+                                  companyName={companyName}
+                                  yearsEstablished={devData.yearEstablished || devData.yearsEstablished || '10+ Years'}
+                                  mobileNumber={devData.companyPhone || devData.phone || '0000000000'}
+                                  officeAddress={devData.officeAddress || 'Mumbai, India'}
+                                  companyLogo={devData.logo || devData.companyLogo}
+                                  companyBanner={devData.banner || devData.companyBanner}
+                                />
+                                <div className="flex gap-4 mt-4 bg-card/90 backdrop-blur-md p-4 rounded-2xl border border-border/50 shadow-xl w-[800px] justify-center items-center" style={{ zoom: 0.8 }}>
+                                  <Link href={`/developers/${shortId}`} className="flex-1 max-w-[300px]">
+                                    <Button className="w-full gap-2 text-primary hover:text-primary-foreground border-primary bg-primary/10 hover:bg-primary transition-all font-bold" variant="outline" size="lg">
+                                      <User2 className="w-5 h-5" /> View Developer Profile
+                                    </Button>
+                                  </Link>
                                 </div>
-                              </div>
-                              <div className="mt-20 px-8 pb-8 text-center flex-1 flex flex-col justify-between">
-                                <div>
-                                  <h3 className="text-2xl font-black text-foreground mb-1">{p.developerInfo?.companyName || (p.developerId ? p.developerId.substring(0, 6).toUpperCase() : 'VISHWA')}</h3>
-                                  <p className="text-sm text-primary font-bold tracking-widest uppercase mb-4 flex items-center justify-center gap-1">
-                                    <BadgeCheck className="w-4 h-4" /> Verified Developer
-                                  </p>
-                                  <div className="bg-muted/50 p-4 rounded-2xl border border-border/50 flex flex-col gap-3 text-left">
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center shrink-0 border"><User2 className="w-4 h-4 text-muted-foreground" /></div>
-                                      <div>
-                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Contact Person</p>
-                                        <p className="text-sm font-semibold">{p.developerInfo?.contactPerson || 'Not Provided'}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center shrink-0 border font-mono text-[10px] font-bold">ID</div>
-                                      <div>
-                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Developer UID</p>
-                                        <p className="text-xs font-mono truncate">{p.developerId || 'N/A'}</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="mt-6 pt-4 border-t border-border/50">
-                                  <p className="text-[10px] text-muted-foreground font-mono">ID Card valid for Milestono Platform strictly.</p>
-                                </div>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                              </DialogContent>
+                            </Dialog>
+                          )
+                        })()}
                       </td>
                       <td className="px-5 py-3 font-mono text-sm text-right" title={`₹${((p.marketData?.currentPrice || p.unitPrice || 0) * (p.totalUnits || 0)).toLocaleString('en-IN')}`}>
                         ₹{((p.marketData?.currentPrice || p.unitPrice || 0) * (p.totalUnits || 0) / 10000000).toFixed(2)} Cr

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import { Loader2 } from 'lucide-react'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -17,16 +19,34 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, title, subtitle, requiredRole, allowGuest, hideSidebar }: AppLayoutProps) {
   const router = useRouter()
-  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null)
+  const [user, setUser] = useState<{ id?: string; name: string; email: string; role: string } | null>(null)
   const [checking, setChecking] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unviewedAlertsCount, setUnviewedAlertsCount] = useState(0)
+
+  useEffect(() => {
+    if (!user?.id || !user?.role || user.role === 'admin') return
+
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.id),
+      where('role', '==', user.role),
+      where('read', '==', false)
+    )
+    
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setUnviewedAlertsCount(snap.docs.length)
+    })
+    
+    return () => unsubscribe()
+  }, [user])
 
   useEffect(() => {
     // Passive Market Sync (Resolves Appreciations)
     fetch('/api/market/sync', { method: 'POST' }).catch(() => {})
 
     async function checkSessionAndProfile() {
-      const raw = sessionStorage.getItem('milestono_user')
+      const raw = localStorage.getItem('milestono_user')
       if (!raw) {
         if (allowGuest) {
           setUser(null)
@@ -51,7 +71,7 @@ export function AppLayout({ children, title, subtitle, requiredRole, allowGuest,
         }
 
         const activeRole = profileJson.data.role || parsed.role || 'investor'
-        const updatedUser = { ...parsed, ...profileJson.data, role: activeRole }
+        const updatedUser = { ...parsed, ...profileJson.data, role: activeRole, id: userId }
         
         if (requiredRole && activeRole !== requiredRole && activeRole !== 'admin') {
           const roleRoutes: Record<string, string> = {
@@ -81,7 +101,7 @@ export function AppLayout({ children, title, subtitle, requiredRole, allowGuest,
 
   function handleLogout() {
     fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
-      sessionStorage.clear()
+      localStorage.clear()
       router.replace('/auth/login')
     })
   }
@@ -106,6 +126,7 @@ export function AppLayout({ children, title, subtitle, requiredRole, allowGuest,
           onLogout={handleLogout}
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
+          unviewedAlertsCount={unviewedAlertsCount}
         />
       )}
       <div className="flex flex-col flex-1 overflow-hidden transition-all duration-300">

@@ -368,7 +368,7 @@ export default function PropertyDetailsPage() {
                       labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}
                       labelFormatter={(label) => {
                         try {
-                          const date = new Date(label);
+                          const date = new Date(label as any);
                           if (isNaN(date.getTime())) return String(label);
                           return format(date, 'MMM d, yyyy, h:mm a');
                         } catch { return String(label) }

@@ -21,7 +21,7 @@ function getInvestorEmail(investor: any) {
 }
 
 function getInvestorPhoto(investor: any) {
-  return investor.photo || investor.avatar || investor.profileImage || fallbackAvatar
+  return investor.profileImage || investor.profilePic || fallbackAvatar
 }
 
 export default function AdminInvestorsPage() {

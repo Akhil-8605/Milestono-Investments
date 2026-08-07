@@ -300,7 +300,16 @@ export default function InvestorDashboard() {
         {/* Stat Cards */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-card border border-border rounded-[1.5rem] p-6 h-36 animate-pulse" />)}
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="relative overflow-hidden rounded-[1.5rem] border p-5 bg-card border-border shadow-md h-36 flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+                  <div className="h-9 w-9 bg-muted animate-pulse rounded-xl" />
+                </div>
+                <div className="h-8 w-24 bg-muted animate-pulse rounded mt-auto" />
+                <div className="h-3 w-32 bg-muted animate-pulse rounded mt-2" />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 relative z-10">
@@ -314,11 +323,72 @@ export default function InvestorDashboard() {
         {loading ? (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 mt-6">
-              <div className="lg:col-span-2 bg-card/60 border border-border rounded-[1.5rem] p-6 h-[340px] animate-pulse" />
-              <div className="bg-card/60 border border-border rounded-[1.5rem] p-6 h-[340px] animate-pulse" />
+              <div className="lg:col-span-2 bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] p-6 shadow-sm h-[340px] flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <div className="h-5 w-32 bg-muted animate-pulse rounded mb-2" />
+                    <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+                  </div>
+                  <div className="h-6 w-20 bg-muted animate-pulse rounded-lg" />
+                </div>
+                <div className="flex-1 w-full bg-muted/50 animate-pulse rounded-xl mt-4" />
+              </div>
+              <div className="bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] p-6 shadow-sm h-[340px] flex flex-col">
+                <div className="h-5 w-32 bg-muted animate-pulse rounded mb-2" />
+                <div className="h-3 w-40 bg-muted animate-pulse rounded mb-6" />
+                <div className="flex-1 flex flex-col justify-center items-center">
+                  <div className="w-[110px] h-[110px] rounded-full border-[12px] border-muted/50 animate-pulse" />
+                  <div className="grid grid-cols-2 gap-4 mt-8 w-full px-4">
+                     <div className="flex gap-2 items-center"><div className="w-2 h-2 rounded-full bg-muted animate-pulse"/><div className="h-3 flex-1 bg-muted animate-pulse rounded"/></div>
+                     <div className="flex gap-2 items-center"><div className="w-2 h-2 rounded-full bg-muted animate-pulse"/><div className="h-3 flex-1 bg-muted animate-pulse rounded"/></div>
+                     <div className="flex gap-2 items-center"><div className="w-2 h-2 rounded-full bg-muted animate-pulse"/><div className="h-3 flex-1 bg-muted animate-pulse rounded"/></div>
+                     <div className="flex gap-2 items-center"><div className="w-2 h-2 rounded-full bg-muted animate-pulse"/><div className="h-3 flex-1 bg-muted animate-pulse rounded"/></div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-6 relative z-10 mt-6">
-              <div className="bg-card/60 border border-border rounded-[1.5rem] p-6 h-[400px] animate-pulse" />
+              <div className="bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] shadow-sm flex flex-col">
+                <div className="flex items-center justify-between p-6 border-b border-border/50">
+                  <div>
+                    <div className="h-5 w-32 bg-muted animate-pulse rounded mb-2" />
+                    <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+                  </div>
+                  <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="p-0">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border/50 bg-muted/20">
+                         <th className="py-4 px-6 text-left"><div className="h-3 w-16 bg-muted animate-pulse rounded" /></th>
+                         <th className="py-4 px-4 text-right"><div className="h-3 w-12 bg-muted animate-pulse rounded ml-auto" /></th>
+                         <th className="py-4 px-4 text-right"><div className="h-3 w-16 bg-muted animate-pulse rounded ml-auto" /></th>
+                         <th className="py-4 px-4 text-right"><div className="h-3 w-20 bg-muted animate-pulse rounded ml-auto" /></th>
+                         <th className="py-4 px-6 text-right"><div className="h-3 w-16 bg-muted animate-pulse rounded ml-auto" /></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <tr key={i} className="border-b border-border/40">
+                           <td className="py-4 px-6">
+                             <div className="flex items-center gap-3">
+                               <div className="h-10 w-10 rounded-xl bg-muted animate-pulse" />
+                               <div>
+                                 <div className="h-4 w-20 bg-muted animate-pulse rounded mb-1.5" />
+                                 <div className="h-3 w-12 bg-muted animate-pulse rounded" />
+                               </div>
+                             </div>
+                           </td>
+                           <td className="py-4 px-4 text-right"><div className="h-4 w-12 bg-muted animate-pulse rounded ml-auto" /></td>
+                           <td className="py-4 px-4 text-right"><div className="h-4 w-16 bg-muted animate-pulse rounded ml-auto" /></td>
+                           <td className="py-4 px-4 text-right"><div className="h-4 w-20 bg-muted animate-pulse rounded ml-auto" /></td>
+                           <td className="py-4 px-6 text-right"><div className="h-6 w-16 bg-muted animate-pulse rounded-md ml-auto" /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </>
         ) : (

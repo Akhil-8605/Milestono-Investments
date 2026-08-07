@@ -21,16 +21,16 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
   const router = useRouter()
   const { user } = useSession()
   const resolvedParams = use(params)
-  
+
   const [property, setProperty] = useState<Property | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  
+
   const [units, setUnits] = useState(1)
   const [isProcessing, setIsProcessing] = useState(false)
   const [tokenPaid, setTokenPaid] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
-  const [invoiceDetails, setInvoiceDetails] = useState<{txId: string, amount: number, isToken: boolean} | null>(null)
-  
+  const [invoiceDetails, setInvoiceDetails] = useState<{ txId: string, amount: number, isToken: boolean } | null>(null)
+
   const [neftData, setNeftData] = useState({
     utrNumber: '',
     bankName: '',
@@ -63,14 +63,14 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
       toast.error('Failed to load property details in real-time')
       setIsLoading(false)
     })
-    
+
     return () => unsubscribe()
   }, [resolvedParams.propertyTickerId, router])
 
   const currentPrice = property?.marketData?.currentPrice ?? property?.unitPrice ?? 0
   const totalAmount = units * currentPrice
   const isLargeTransaction = totalAmount >= 100000 // >= 1 Lakh
-  
+
   const rawTokenAmount = totalAmount * 0.05
   const tokenAmount = Math.min(rawTokenAmount, 75000)
 
@@ -91,7 +91,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
   const handleRazorpayPayment = async (amountToPay: number, isToken: boolean) => {
     if (!user || !property) return
     setIsProcessing(true)
-    
+
     try {
       const isLoaded = await loadRazorpay()
       if (!isLoaded) {
@@ -104,9 +104,9 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
       const res = await fetch('/api/payment/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          amount: amountToPay, 
-          receipt: `rcpt_${user.id}_${Date.now()}` 
+        body: JSON.stringify({
+          amount: amountToPay,
+          receipt: `rcpt_${user.id}_${Date.now()}`
         }),
       })
 
@@ -170,7 +170,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return
     setUploadingImage(true)
-    
+
     const file = e.target.files[0]
     const reader = new FileReader()
     reader.onload = (event) => {
@@ -211,9 +211,9 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
       setTimeout(() => {
         const element = document.getElementById('aesthetic-invoice')
         if (element) {
-          html2canvas(element, { 
-            scale: 2, 
-            backgroundColor: '#ffffff', 
+          html2canvas(element, {
+            scale: 2,
+            backgroundColor: '#ffffff',
             useCORS: true,
             onclone: (clonedDoc) => {
               try {
@@ -279,7 +279,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         neftDetails: method === 'neft_with_token' ? neftData : null,
         timestamp: serverTimestamp()
       })
-      
+
       const propRef = doc(db, 'properties', property!.id)
       if (method === 'razorpay_direct') {
         await addDoc(collection(db, 'investments'), {
@@ -296,7 +296,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
           purchasedAt: serverTimestamp(),
           status: 'active'
         })
-        await updateDoc(propRef, { 
+        await updateDoc(propRef, {
           unitsSold: increment(units),
           unitsAvailable: increment(-units)
         }).catch(console.error)
@@ -310,7 +310,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         role: 'investor',
         type: method === 'razorpay_direct' ? 'payment_successful' : 'neft_submitted',
         title: method === 'razorpay_direct' ? 'Investment Confirmed' : 'Token Paid & NEFT Submitted',
-        message: method === 'razorpay_direct' 
+        message: method === 'razorpay_direct'
           ? `Purchased ${units} units of ${property!.name} (${property!.symbol}) for ₹${totalAmount.toLocaleString('en-IN')}.`
           : `Token payment of ₹${(tokenPaidAmt || 0).toLocaleString('en-IN')} received for ${property!.name}. NEFT verification pending.`,
         propertySymbol: property!.symbol,
@@ -335,9 +335,9 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
           createdAt: serverTimestamp()
         }).catch(console.error)
       }
-      
+
       toast.success(method === 'neft_with_token' ? 'Token Paid & NEFT Details Submitted! Redirecting to orders...' : 'Investment Successful! Redirecting to orders...')
-      
+
       if (method === 'razorpay_direct' && txRef?.id) {
         generateInvoice(txRef.id, totalAmount, false)
       } else if (method === 'neft_with_token' && tokenPaidAmt && txRef?.id) {
@@ -389,7 +389,7 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         </div>
 
         <div className="max-w-[1200px] mx-auto px-6 py-10 space-y-10 relative z-10">
-          
+
           {/* Header Section */}
           <div className="bg-card/40 border border-border/50 rounded-[2.5rem] p-8 md:p-12 shadow-2xl backdrop-blur-2xl relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-indigo-500/5 opacity-50"></div>
@@ -410,213 +410,231 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
             </div>
           </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* Order Calculator */}
-          <div className="space-y-6">
-            <h3 className="text-2xl font-bold border-b pb-4">Order Configuration</h3>
-            
-            <div className="bg-muted/30 p-6 rounded-2xl border border-border/50 space-y-6">
-              <div className="space-y-3">
-                <label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Units to Purchase</label>
-                <Input 
-                  type="number" 
-                  max={availableUnits}
-                  value={units || ''}
-                  onChange={(e) => {
-                    const val = e.target.value === '' ? '' : parseInt(e.target.value)
-                    setUnits(val as any)
-                  }}
-                  className={`h-14 text-xl font-bold bg-background ${units > availableUnits ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                  disabled={tokenPaid || isProcessing}
-                />
-                {units > availableUnits && (
-                  <p className="text-red-500 text-xs font-bold mt-1">
-                    Cannot purchase more than available limit of {availableUnits.toLocaleString()} units
-                  </p>
-                )}
-                {units < 1 && (
-                  <p className="text-red-500 text-xs font-bold mt-1">
-                    Please enter a valid number of units (minimum 1).
-                  </p>
-                )}
-                <p className={`text-xs ${units > availableUnits || units < 1 ? 'text-red-500/80' : 'text-primary/80'} font-semibold italic tracking-wide`}>
-                  {units > 0 ? `${numberToIndianWords(units)} units` : ''}
-                </p>
-                <p className="text-xs text-muted-foreground font-medium flex justify-between pt-1">
-                  <span>Available Depth: {availableUnits.toLocaleString()}</span>
-                  <span>Max Limit: {availableUnits.toLocaleString()}</span>
-                </p>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* Order Calculator */}
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold border-b pb-4">Order Configuration</h3>
 
-              <div className="pt-4 border-t border-border/50 space-y-3">
-                <div className="flex justify-between items-center text-sm font-semibold">
-                  <span className="text-muted-foreground">Unit Price</span>
-                  <span>₹{currentPrice.toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex flex-col items-end pt-2">
-                  <div className="flex justify-between items-center w-full text-lg font-black">
-                    <span>Total Capital Required</span>
-                    <span className="text-primary font-mono text-2xl">₹{totalAmount.toLocaleString('en-IN')}</span>
+              <div className="bg-muted/30 p-6 rounded-2xl border border-border/50 space-y-6">
+                <div className="space-y-3">
+                  <label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Units to Purchase</label>
+                  <Input
+                    type="number"
+                    max={availableUnits}
+                    value={units || ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : parseInt(e.target.value)
+                      setUnits(val as any)
+                    }}
+                    className={`h-14 text-xl font-bold bg-background ${units > availableUnits ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                    disabled={tokenPaid || isProcessing}
+                  />
+                  {units > availableUnits && (
+                    <p className="text-red-500 text-xs font-bold mt-1">
+                      Cannot purchase more than available limit of {availableUnits.toLocaleString()} units
+                    </p>
+                  )}
+                  {units < 1 && (
+                    <p className="text-red-500 text-xs font-bold mt-1">
+                      Please enter a valid number of units (minimum 1).
+                    </p>
+                  )}
+                  <p className={`text-xs ${units > availableUnits || units < 1 ? 'text-red-500/80' : 'text-primary/80'} font-semibold italic tracking-wide`}>
+                    {units > 0 ? `${numberToIndianWords(units)} units` : ''}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium flex justify-between pt-1">
+                    <span>Available Depth: {availableUnits.toLocaleString()}</span>
+                    <span>Max Limit: {availableUnits.toLocaleString()}</span>
+                  </p>
+                  <div className="text-xs text-muted-foreground font-medium flex justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setUnits(prev => Math.max(1, (Number(prev) || 1) - 1))}
+                      disabled={units <= 1 || tokenPaid || isProcessing}
+                      className="h-7 w-7 rounded-md bg-muted hover:bg-secondary text-foreground font-bold border border-border flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUnits(prev => Math.min(availableUnits, (Number(prev) || 0) + 1))}
+                      disabled={units >= availableUnits || tokenPaid || isProcessing}
+                      className="h-7 w-7 rounded-md bg-muted hover:bg-secondary text-foreground font-bold border border-border flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      +
+                    </button>
                   </div>
-                  <span className="text-xs font-semibold text-primary/70 italic uppercase tracking-wider mt-1">
-                    Rupees {numberToIndianWords(totalAmount)} Only
-                  </span>
+                </div>
+
+                <div className="pt-4 border-t border-border/50 space-y-3">
+                  <div className="flex justify-between items-center text-sm font-semibold">
+                    <span className="text-muted-foreground">Unit Price</span>
+                    <span>₹{currentPrice.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex flex-col items-end pt-2">
+                    <div className="flex justify-between items-center w-full text-lg font-black">
+                      <span>Total Capital Required</span>
+                      <span className="text-primary font-mono text-2xl">₹{totalAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-primary/70 italic uppercase tracking-wider mt-1">
+                      Rupees {numberToIndianWords(totalAmount)} Only
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Payment Gateway Logic */}
-          <div className="space-y-6">
-            <h3 className="text-2xl font-bold border-b pb-4">Secure Checkout</h3>
-            
-            {!isLargeTransaction ? (
-              // LESS THAN 1 LAKH - DIRECT RAZORPAY
-              <Card className="p-8 border-primary/20 shadow-[0_0_30px_rgba(var(--primary),0.1)] text-center space-y-6 bg-gradient-to-br from-card to-card/50">
-                <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-                  <ShieldCheck className="w-8 h-8" />
-                </div>
-                <div>
-                  <h4 className="text-xl font-bold mb-2">Instant Direct Allocation</h4>
-                  <p className="text-sm text-muted-foreground">Your transaction is under ₹1,00,000. You can purchase these units instantly via Razorpay. Units will be allocated to your portfolio immediately upon successful payment.</p>
-                </div>
-                <Button 
-                  onClick={() => handleRazorpayPayment(totalAmount, false)} 
-                  disabled={isProcessing || units > availableUnits || units < 1}
-                  className="w-full h-14 text-lg font-bold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
-                >
-                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay ₹${totalAmount.toLocaleString('en-IN')} Securely`}
-                </Button>
-              </Card>
-            ) : (
-              // GREATER THAN 1 LAKH - TOKEN
-              <div className="space-y-6">
-                <Card className="p-8 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.05)] space-y-6 bg-gradient-to-br from-card to-card/50">
-                  <div className="flex items-center gap-4 mb-2">
-                    <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center shrink-0">
-                      <Landmark className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-bold">High-Value Transaction Protocol</h4>
-                      <p className="text-xs text-muted-foreground mt-1">Transactions over ₹1 Lakh require a Token Hold and NEFT transfer.</p>
-                    </div>
+            {/* Payment Gateway Logic */}
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold border-b pb-4">Secure Checkout</h3>
+
+              {!isLargeTransaction ? (
+                // LESS THAN 1 LAKH - DIRECT RAZORPAY
+                <Card className="p-8 border-primary/20 shadow-[0_0_30px_rgba(var(--primary),0.1)] text-center space-y-6 bg-gradient-to-br from-card to-card/50">
+                  <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                    <ShieldCheck className="w-8 h-8" />
                   </div>
-                  
-                  <div className="bg-background p-4 rounded-xl border border-border text-sm space-y-3">
-                    <div className="flex justify-between items-center text-muted-foreground font-medium">
-                      <span>Total Amount</span>
-                      <span>₹{totalAmount.toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="flex flex-col items-end pt-2 border-t border-border/30 mt-2">
-                      <div className="flex justify-between items-center w-full text-muted-foreground font-medium">
-                        <span>5% Token (Capped at 75K)</span>
-                        <span className="text-amber-500 font-bold text-lg">₹{tokenAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-amber-500/70 italic uppercase tracking-wider mt-1">
-                        Rupees {numberToIndianWords(tokenAmount)} Only
-                      </span>
-                    </div>
+                  <div>
+                    <h4 className="text-xl font-bold mb-2">Instant Direct Allocation</h4>
+                    <p className="text-sm text-muted-foreground">Your transaction is under ₹1,00,000. You can purchase these units instantly via Razorpay. Units will be allocated to your portfolio immediately upon successful payment.</p>
                   </div>
-
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    To secure this allocation, pay the holding token via Razorpay now. Once paid, you will receive instructions to transfer the remaining balance of <strong className="text-foreground">₹{(totalAmount - tokenAmount).toLocaleString('en-IN')}</strong> via NEFT.
-                  </p>
-
-                  <Button 
-                    onClick={() => handleRazorpayPayment(tokenAmount, true)} 
+                  <Button
+                    onClick={() => handleRazorpayPayment(totalAmount, false)}
                     disabled={isProcessing || units > availableUnits || units < 1}
-                    className="w-full h-14 text-lg font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-lg"
+                    className="w-full h-14 text-lg font-bold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
                   >
-                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay Token: ₹${tokenAmount.toLocaleString('en-IN')}`}
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay ₹${totalAmount.toLocaleString('en-IN')} Securely`}
                   </Button>
                 </Card>
-              </div>
-            )}
+              ) : (
+                // GREATER THAN 1 LAKH - TOKEN
+                <div className="space-y-6">
+                  <Card className="p-8 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.05)] space-y-6 bg-gradient-to-br from-card to-card/50">
+                    <div className="flex items-center gap-4 mb-2">
+                      <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center shrink-0">
+                        <Landmark className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-bold">High-Value Transaction Protocol</h4>
+                        <p className="text-xs text-muted-foreground mt-1">Transactions over ₹1 Lakh require a Token Hold and NEFT transfer.</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-background p-4 rounded-xl border border-border text-sm space-y-3">
+                      <div className="flex justify-between items-center text-muted-foreground font-medium">
+                        <span>Total Amount</span>
+                        <span>₹{totalAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex flex-col items-end pt-2 border-t border-border/30 mt-2">
+                        <div className="flex justify-between items-center w-full text-muted-foreground font-medium">
+                          <span>5% Token (Capped at 75K)</span>
+                          <span className="text-amber-500 font-bold text-lg">₹{tokenAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-500/70 italic uppercase tracking-wider mt-1">
+                          Rupees {numberToIndianWords(tokenAmount)} Only
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      To secure this allocation, pay the holding token via Razorpay now. Once paid, you will receive instructions to transfer the remaining balance of <strong className="text-foreground">₹{(totalAmount - tokenAmount).toLocaleString('en-IN')}</strong> via NEFT.
+                    </p>
+
+                    <Button
+                      onClick={() => handleRazorpayPayment(tokenAmount, true)}
+                      disabled={isProcessing || units > availableUnits || units < 1}
+                      className="w-full h-14 text-lg font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-lg"
+                    >
+                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay Token: ₹${tokenAmount.toLocaleString('en-IN')}`}
+                    </Button>
+                  </Card>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* AESTHETIC INVOICE MODAL OVERLAY */}
-      {showInvoiceModal && invoiceDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="relative w-full max-w-3xl bg-background rounded-3xl shadow-2xl p-8 flex flex-col my-8">
-            <div className="flex justify-between items-center mb-6 border-b border-border/50 pb-4">
-              <h2 className="text-xl font-bold flex items-center gap-2"><CheckCircle2 className="text-emerald-500" /> Payment Successful</h2>
-              <div className="flex gap-3">
-                <Button variant="outline" className="gap-2" onClick={() => toast.info('Auto-downloading, please wait...')}><Download className="w-4 h-4" /> Downloading...</Button>
-                <Button onClick={() => router.push('/investor/orders')} className="bg-primary text-primary-foreground">View Orders</Button>
-              </div>
-            </div>
 
-            {/* THE INVOICE TO BE CAPTURED BY HTML2CANVAS */}
-            <div style={{ backgroundColor: '#ffffff', color: '#000000', fontFamily: 'sans-serif' }} className="p-10 rounded-xl mx-auto shadow-inner border w-full max-w-2xl relative" id="aesthetic-invoice">
-              <div className="absolute top-0 right-0 p-8 opacity-5">
-                <Building2 className="w-64 h-64" />
-              </div>
-              
-              <div style={{ borderBottomWidth: '2px', borderBottomColor: '#f3f4f6' }} className="flex justify-between items-start pb-8 mb-8 relative z-10 border-b-2">
-                <div>
-                  <h1 style={{ color: '#059669' }} className="text-3xl font-black tracking-tight">MILESTONO</h1>
-                  <p style={{ color: '#6b7280' }} className="text-sm font-medium tracking-widest uppercase mt-1">Investments Pvt Ltd</p>
-                </div>
-                <div className="text-right">
-                  <h2 style={{ color: '#1f2937' }} className="text-2xl font-bold">TAX INVOICE</h2>
-                  <p style={{ color: '#6b7280' }} className="text-sm font-bold font-mono mt-2 uppercase tracking-wider bg-gray-100 py-1 px-3 rounded inline-block">Transaction ID: <span className="text-gray-900">{invoiceDetails.txId}</span></p>
+        {/* AESTHETIC INVOICE MODAL OVERLAY */}
+        {showInvoiceModal && invoiceDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="relative w-full max-w-3xl bg-background rounded-3xl shadow-2xl p-8 flex flex-col my-8">
+              <div className="flex justify-between items-center mb-6 border-b border-border/50 pb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2"><CheckCircle2 className="text-emerald-500" /> Payment Successful</h2>
+                <div className="flex gap-3">
+                  <Button variant="outline" className="gap-2" onClick={() => toast.info('Auto-downloading, please wait...')}><Download className="w-4 h-4" /> Downloading...</Button>
+                  <Button onClick={() => router.push('/investor/orders')} className="bg-primary text-primary-foreground">View Orders</Button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-8 mb-10 relative z-10">
-                <div>
-                  <p style={{ color: '#9ca3af' }} className="text-xs font-bold uppercase tracking-widest mb-2">Billed To</p>
-                  <p style={{ color: '#1f2937' }} className="font-bold text-lg">{user?.name}</p>
-                  <p style={{ color: '#4b5563' }} className="text-sm">{user?.email}</p>
+              {/* THE INVOICE TO BE CAPTURED BY HTML2CANVAS */}
+              <div style={{ backgroundColor: '#ffffff', color: '#000000', fontFamily: 'sans-serif' }} className="p-10 rounded-xl mx-auto shadow-inner border w-full max-w-2xl relative" id="aesthetic-invoice">
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                  <Building2 className="w-64 h-64" />
                 </div>
-                <div className="text-right flex flex-col items-end">
-                  <p style={{ color: '#9ca3af' }} className="text-xs font-bold uppercase tracking-widest mb-2">Invoice Details</p>
-                  <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-right">
-                    <p style={{ color: '#1f2937' }} className="text-sm font-bold">Date: {new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: '2-digit' })}</p>
-                    <p style={{ color: '#4b5563' }} className="text-xs font-bold mt-1">Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</p>
+
+                <div style={{ borderBottomWidth: '2px', borderBottomColor: '#f3f4f6' }} className="flex justify-between items-start pb-8 mb-8 relative z-10 border-b-2">
+                  <div>
+                    <h1 style={{ color: '#059669' }} className="text-3xl font-black tracking-tight">MILESTONO</h1>
+                    <p style={{ color: '#6b7280' }} className="text-sm font-medium tracking-widest uppercase mt-1">Investments Pvt Ltd</p>
                   </div>
-                  <p style={{ color: '#1f2937' }} className="text-sm font-semibold mt-2">Payment: Razorpay Secure</p>
-                  {invoiceDetails.isToken && <p style={{ color: '#f59e0b', backgroundColor: '#fffbeb', borderColor: '#fde68a' }} className="text-[10px] tracking-widest font-black inline-block px-2 py-1 rounded mt-2 border">HOLDING TOKEN</p>}
+                  <div className="text-right">
+                    <h2 style={{ color: '#1f2937' }} className="text-2xl font-bold">TAX INVOICE</h2>
+                    <p style={{ color: '#6b7280' }} className="text-sm font-bold font-mono mt-2 uppercase tracking-wider bg-gray-100 py-1 px-3 rounded inline-block">Transaction ID: <span className="text-gray-900">{invoiceDetails.txId}</span></p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8 mb-10 relative z-10">
+                  <div>
+                    <p style={{ color: '#9ca3af' }} className="text-xs font-bold uppercase tracking-widest mb-2">Billed To</p>
+                    <p style={{ color: '#1f2937' }} className="font-bold text-lg">{user?.name}</p>
+                    <p style={{ color: '#4b5563' }} className="text-sm">{user?.email}</p>
+                  </div>
+                  <div className="text-right flex flex-col items-end">
+                    <p style={{ color: '#9ca3af' }} className="text-xs font-bold uppercase tracking-widest mb-2">Invoice Details</p>
+                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-right">
+                      <p style={{ color: '#1f2937' }} className="text-sm font-bold">Date: {new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: '2-digit' })}</p>
+                      <p style={{ color: '#4b5563' }} className="text-xs font-bold mt-1">Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</p>
+                    </div>
+                    <p style={{ color: '#1f2937' }} className="text-sm font-semibold mt-2">Payment: Razorpay Secure</p>
+                    {invoiceDetails.isToken && <p style={{ color: '#f59e0b', backgroundColor: '#fffbeb', borderColor: '#fde68a' }} className="text-[10px] tracking-widest font-black inline-block px-2 py-1 rounded mt-2 border">HOLDING TOKEN</p>}
+                  </div>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden relative z-10">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr style={{ backgroundColor: '#f9fafb', borderBottomColor: '#e5e7eb' }} className="border-b">
+                        <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest">Description</th>
+                        <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest text-right">Units</th>
+                        <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottomColor: '#f3f4f6' }} className="border-b">
+                        <td className="py-6 px-6">
+                          <p style={{ color: '#1f2937' }} className="font-bold">{invoiceDetails.isToken ? 'Fractional Holding Token' : 'Fractional Ownership Allocation'}</p>
+                          <p style={{ color: '#6b7280' }} className="text-sm">{property?.name} ({property?.symbol})</p>
+                        </td>
+                        <td style={{ color: '#1f2937' }} className="py-6 px-6 text-right font-mono font-medium">{invoiceDetails.isToken ? '-' : units}</td>
+                        <td style={{ color: '#1f2937' }} className="py-6 px-6 text-right font-mono font-medium">₹{invoiceDetails.amount.toLocaleString('en-IN')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div style={{ backgroundColor: '#ecfdf5', borderTopColor: '#d1fae5' }} className="flex justify-between items-center p-6 border-t">
+                    <span style={{ color: '#065f46' }} className="text-sm font-bold uppercase tracking-widest">Total Paid</span>
+                    <span style={{ color: '#047857' }} className="text-2xl font-black font-mono">₹{invoiceDetails.amount.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+
+                <div style={{ color: '#9ca3af', borderTopColor: '#f3f4f6' }} className="mt-12 text-center text-xs border-t pt-6">
+                  <p>{invoiceDetails.isToken ? 'This is a token payment receipt. Final property allocation is subject to NEFT clearance.' : 'This is a computer-generated invoice and does not require a physical signature.'}</p>
+                  <p className="mt-1">Thank you for investing with Milestono.</p>
                 </div>
               </div>
 
-              <div className="border rounded-xl overflow-hidden relative z-10">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr style={{ backgroundColor: '#f9fafb', borderBottomColor: '#e5e7eb' }} className="border-b">
-                      <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest">Description</th>
-                      <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest text-right">Units</th>
-                      <th style={{ color: '#6b7280' }} className="py-4 px-6 text-xs font-bold uppercase tracking-widest text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ borderBottomColor: '#f3f4f6' }} className="border-b">
-                      <td className="py-6 px-6">
-                        <p style={{ color: '#1f2937' }} className="font-bold">{invoiceDetails.isToken ? 'Fractional Holding Token' : 'Fractional Ownership Allocation'}</p>
-                        <p style={{ color: '#6b7280' }} className="text-sm">{property?.name} ({property?.symbol})</p>
-                      </td>
-                      <td style={{ color: '#1f2937' }} className="py-6 px-6 text-right font-mono font-medium">{invoiceDetails.isToken ? '-' : units}</td>
-                      <td style={{ color: '#1f2937' }} className="py-6 px-6 text-right font-mono font-medium">₹{invoiceDetails.amount.toLocaleString('en-IN')}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div style={{ backgroundColor: '#ecfdf5', borderTopColor: '#d1fae5' }} className="flex justify-between items-center p-6 border-t">
-                  <span style={{ color: '#065f46' }} className="text-sm font-bold uppercase tracking-widest">Total Paid</span>
-                  <span style={{ color: '#047857' }} className="text-2xl font-black font-mono">₹{invoiceDetails.amount.toLocaleString('en-IN')}</span>
-                </div>
-              </div>
-
-              <div style={{ color: '#9ca3af', borderTopColor: '#f3f4f6' }} className="mt-12 text-center text-xs border-t pt-6">
-                <p>{invoiceDetails.isToken ? 'This is a token payment receipt. Final property allocation is subject to NEFT clearance.' : 'This is a computer-generated invoice and does not require a physical signature.'}</p>
-                <p className="mt-1">Thank you for investing with Milestono.</p>
-              </div>
             </div>
-
           </div>
-        </div>
-      )}
+        )}
       </div>
     </AppLayout>
   )

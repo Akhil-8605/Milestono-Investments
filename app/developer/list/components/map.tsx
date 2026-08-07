@@ -18,22 +18,24 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    if ((window as any).google?.maps) {
-      setIsLoaded(true)
-      return
+    const checkGoogle = () => {
+      if ((window as any).google?.maps?.Map) {
+        setIsLoaded(true)
+      } else {
+        setTimeout(checkGoogle, 100)
+      }
     }
 
     const existingScript = document.getElementById('google-maps-script')
     if (!existingScript) {
       const script = document.createElement('script')
       script.id = 'google-maps-script'
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&maptype=satellite`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`
       script.async = true
-      script.defer = true
-      script.onload = () => setIsLoaded(true)
       document.head.appendChild(script)
+      checkGoogle()
     } else {
-      existingScript.addEventListener('load', () => setIsLoaded(true))
+      checkGoogle()
     }
   }, [apiKey])
 
@@ -47,29 +49,55 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
       const map = new google.maps.Map(mapRef.current, {
         center: latLng,
         zoom: 15,
+        mapId: 'DEMO_MAP_ID', // Required for AdvancedMarkerElement
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: true,
       })
 
-      const marker = new google.maps.Marker({
-        position: latLng,
-        map: map,
-        draggable: true,
-        title: 'Property Location',
-      })
+      let marker: any = null
+      if (google.maps.marker?.AdvancedMarkerElement) {
+        marker = new google.maps.marker.AdvancedMarkerElement({
+          position: latLng,
+          map: map,
+          gmpDraggable: true,
+          title: 'Property Location',
+        })
+      } else {
+        // Fallback for older API versions
+        marker = new google.maps.Marker({
+          position: latLng,
+          map: map,
+          draggable: true,
+          title: 'Property Location',
+        })
+      }
 
       map.addListener('click', (e: any) => {
-        const newLat = e.latLng.lat()
-        const newLng = e.latLng.lng()
-        marker.setPosition({ lat: newLat, lng: newLng })
+        if (!e.latLng) return
+        const newLat = typeof e.latLng.lat === 'function' ? e.latLng.lat() : e.latLng.lat
+        const newLng = typeof e.latLng.lng === 'function' ? e.latLng.lng() : e.latLng.lng
+        if (marker.position !== undefined) {
+          marker.position = { lat: newLat, lng: newLng } // AdvancedMarkerElement
+        } else {
+          marker.setPosition({ lat: newLat, lng: newLng }) // Fallback Marker
+        }
         setPosition([newLat, newLng])
       })
 
       marker.addListener('dragend', (e: any) => {
-        const newLat = e.latLng.lat()
-        const newLng = e.latLng.lng()
-        setPosition([newLat, newLng])
+        let newLat, newLng
+        if (marker.position !== undefined) {
+          // AdvancedMarkerElement
+          newLat = typeof marker.position.lat === 'function' ? marker.position.lat() : marker.position.lat
+          newLng = typeof marker.position.lng === 'function' ? marker.position.lng() : marker.position.lng
+        } else if (e.latLng) {
+          newLat = typeof e.latLng.lat === 'function' ? e.latLng.lat() : e.latLng.lat
+          newLng = typeof e.latLng.lng === 'function' ? e.latLng.lng() : e.latLng.lng
+        }
+        if (newLat !== undefined && newLng !== undefined) {
+          setPosition([newLat, newLng])
+        }
       })
 
       googleMapRef.current = map
@@ -77,7 +105,11 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
     } else {
       googleMapRef.current.setCenter(latLng)
       if (markerRef.current) {
-        markerRef.current.setPosition(latLng)
+        if (markerRef.current.position !== undefined) {
+          markerRef.current.position = latLng // AdvancedMarkerElement
+        } else {
+          markerRef.current.setPosition(latLng) // Fallback Marker
+        }
       }
     }
   }, [isLoaded, position, setPosition])
@@ -92,12 +124,12 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
 
   return (
     <div className="w-full h-full relative rounded-xl overflow-hidden">
+      <div ref={mapRef} className="w-full h-full rounded-xl border border-border" />
       {!isLoaded && (
-        <div className="absolute inset-0 bg-muted/50 flex items-center justify-center animate-pulse text-muted-foreground text-sm font-medium">
+        <div className="absolute inset-0 bg-muted/50 flex items-center justify-center animate-pulse text-muted-foreground text-sm font-medium z-10">
           Loading Google Maps...
         </div>
       )}
-      <div ref={mapRef} className="w-full h-full rounded-xl border border-border" />
     </div>
   )
 }

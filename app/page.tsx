@@ -2,18 +2,28 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, TrendingUp, Shield, Percent, ArrowRight, BarChart3, Users, ChevronRight } from 'lucide-react'
+import { Building2, TrendingUp, Shield, Percent, ArrowRight, BarChart3, Users, ChevronRight, UserCheck, Search, Wallet, Sun, Moon } from 'lucide-react'
+import { useTheme } from '@/components/shell/theme-provider'
 import { Ticker } from '@/components/global/Ticker'
+import { AnimatedCounter } from '@/components/ui/animated-counter'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Property } from '@/lib/types'
 
-const STATS: any[] = [
-  { value: '₹140Cr+', label: 'Assets Under Management' },
-  { value: '12,450', label: 'Active Investors' },
-  { value: '48', label: 'Grade A Properties' },
-  { value: '11.4%', label: 'Avg. Annual Yield' }
-]
+const AVERAGE_YIELD = '9.4%'
+
+const formatCompactIndianCurrency = (value: number) => {
+  if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)} Cr`
+  if (value >= 100000) return `₹${(value / 100000).toFixed(1)} L`
+  if (value >= 1000) return `₹${(value / 1000).toFixed(1)} K`
+  return `₹${value.toLocaleString('en-IN')}`
+}
+
+const getPropertyValue = (property: Property) => {
+  const price = property.marketData?.currentPrice ?? property.unitPrice ?? 0
+  const units = property.totalUnits ?? 0
+  return price * units
+}
 
 const FEATURES = [
   {
@@ -62,35 +72,65 @@ const FEATURES = [
 
 export default function HomePage() {
   const router = useRouter()
+  const { theme, toggleTheme } = useTheme()
+  const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null)
+  const [stats, setStats] = useState([
+    { value: '—', label: 'Assets Under Management' },
+    { value: '—', label: 'Active Investors' },
+    { value: '—', label: 'Grade A Properties' },
+    { value: AVERAGE_YIELD, label: 'Avg. Annual Yield' },
+  ])
   const [properties, setProperties] = useState<Property[]>([])
 
   useEffect(() => {
     // Passive Market Sync (Resolves Appreciations)
-    fetch('/api/market/sync', { method: 'POST' }).catch(() => {})
+    fetch('/api/market/sync', { method: 'POST' }).catch(() => { })
 
-    const raw = sessionStorage.getItem('milestono_user')
+    const raw = localStorage.getItem('milestono_user')
     if (raw) {
       try {
         const user = JSON.parse(raw)
-        const routes: Record<string, string> = {
-          investor: '/investor/dashboard',
-          developer: '/developer/dashboard',
-          admin: '/admin/properties',
+        if (user.role === 'admin') {
+          router.push('/admin/properties')
+        } else {
+          setCurrentUser(user)
         }
-        router.replace(routes[user.role] ?? '/')
       } catch {
-        sessionStorage.clear()
+        localStorage.clear()
       }
     }
-    const q = query(collection(db, 'properties'), where('status', '==', 'active'))
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const activePropertiesQuery = query(collection(db, 'properties'), where('status', '==', 'active'))
+    const unsubscribeActiveProperties = onSnapshot(activePropertiesQuery, (snapshot) => {
       const activeProps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Property[]
-      setProperties(activeProps.slice(0, 5)) // Show top 5 on landing page
+      setProperties(activeProps.slice(0, 5))
     }, (error) => {
-      console.error('[Landing] Realtime Error:', error)
+      console.error('[Landing] Active Properties Realtime Error:', error)
     })
-    
-    return () => unsubscribe()
+
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/stats')
+        const json = await res.json()
+        if (json.success) {
+          const { totalAum, propertyCount, investorCount } = json.data
+          setStats([
+            { value: formatCompactIndianCurrency(totalAum), label: 'Assets Under Management' },
+            { value: investorCount.toLocaleString('en-IN'), label: 'Active Investors' },
+            { value: propertyCount.toLocaleString('en-IN'), label: 'Grade A Properties' },
+            { value: AVERAGE_YIELD, label: 'Avg. Annual Yield' },
+          ])
+        }
+      } catch (e) {
+        console.error('Failed to fetch stats', e)
+      }
+    }
+    fetchStats()
+    const statsInterval = setInterval(fetchStats, 10000)
+
+    return () => {
+      unsubscribeActiveProperties()
+      clearInterval(statsInterval)
+    }
   }, [router])
 
   return (
@@ -104,7 +144,7 @@ export default function HomePage() {
             </div>
             <div>
               <div className="text-foreground font-bold text-sm leading-none">Milestono</div>
-              <div className="text-primary text-[9px] uppercase tracking-[0.2em] font-medium">Investors</div>
+              <div className="text-primary text-[9px] uppercase tracking-[0.2em] font-medium">Investments</div>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
@@ -112,12 +152,29 @@ export default function HomePage() {
             <a href="#properties" className="hover:text-foreground transition-colors">Properties</a>
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
           </nav>
-          <button
-            onClick={() => router.push('/auth/login')}
-            className="h-8 px-4 rounded-lg bg-primary hover:bg-blue-600 text-white text-sm font-semibold transition-colors flex items-center gap-1.5"
-          >
-            Sign In <ArrowRight size={14} />
-          </button>
+          <div className="flex items-center gap-3">
+            {currentUser ? (
+              <button
+                onClick={() => router.push(currentUser.role === 'developer' ? '/developer/dashboard' : '/investor/dashboard')}
+                className="h-8 px-4 rounded-lg bg-primary hover:bg-blue-600 text-white text-sm font-semibold transition-colors flex items-center gap-1.5"
+              >
+                {currentUser.role === 'developer' ? 'Developer Dashboard' : 'Investor Dashboard'} <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push('/auth/login')}
+                className="h-8 px-4 rounded-lg bg-primary hover:bg-blue-600 text-white text-sm font-semibold transition-colors flex items-center gap-1.5"
+              >
+                Sign In <ArrowRight size={14} />
+              </button>
+            )}
+            <button
+              onClick={toggleTheme}
+              className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -139,13 +196,13 @@ export default function HomePage() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
-            onClick={() => router.push('/auth/login')}
+            onClick={() => router.push('/investor/dashboard')}
             className="h-11 px-7 rounded-lg bg-primary hover:bg-blue-600 text-white font-semibold text-sm transition-colors flex items-center gap-2"
           >
             Start Investing <ArrowRight size={16} />
           </button>
           <button
-            onClick={() => router.push('/auth/login')}
+            onClick={() => router.push('/developer/dashboard')}
             className="h-11 px-7 rounded-lg border border-border hover:border-primary/40 text-muted-foreground hover:text-foreground font-semibold text-sm transition-colors flex items-center gap-2"
           >
             List a Property <ChevronRight size={16} />
@@ -156,11 +213,8 @@ export default function HomePage() {
       {/* Stats */}
       <section className="max-w-7xl mx-auto px-6 pb-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {STATS.map(({ value, label }) => (
-            <div key={label} className="bg-card border border-border rounded-xl p-5 text-center">
-              <div className="text-2xl font-bold text-foreground font-mono num">{value}</div>
-              <div className="text-xs text-muted-foreground mt-1">{label}</div>
-            </div>
+          {stats.map(({ value, label }) => (
+            <AnimatedCounter key={label} value={value} label={label} />
           ))}
         </div>
       </section>
@@ -199,7 +253,7 @@ export default function HomePage() {
                 const price = p.marketData?.currentPrice || p.unitPrice || 0
                 const changePct = p.marketData?.changePct || 0
                 const up = changePct >= 0
-                
+
                 return (
                   <tr
                     key={p.symbol}
@@ -236,7 +290,7 @@ export default function HomePage() {
               onClick={() => router.push('/market')}
               className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 mx-auto transition-colors"
             >
-              Sign in to view all 48 properties and start investing <ArrowRight size={11} />
+              View all properties and start investing <ArrowRight size={11} />
             </button>
           </div>
         </div>
@@ -251,11 +305,60 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map(({ icon: Icon, color, bg, title, desc }) => (
             <div key={title} className="bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-colors">
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4" style={{ background: bg }}>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-primary/20">
                 <Icon size={16} style={{ color }} />
               </div>
               <h3 className="text-sm font-semibold text-foreground mb-2">{title}</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how" className="max-w-7xl mx-auto px-6 pb-24">
+        <div className="text-center mb-14">
+          <h2 className="text-3xl font-bold text-foreground mb-3">How It Works</h2>
+          <p className="text-muted-foreground text-sm max-w-lg mx-auto">Your journey from signing up to earning passive income, simplified into 4 seamless steps.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+          <div className="hidden md:block absolute top-1/2 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent -z-10 -translate-y-1/2"></div>
+
+          {[
+            {
+              step: 1,
+              title: 'Sign Up & KYC',
+              desc: 'Create an account and complete our fast, digital KYC process to get verified instantly.',
+              icon: UserCheck
+            },
+            {
+              step: 2,
+              title: 'Browse Properties',
+              desc: 'Analyze Grade A commercial and residential assets listed by top developers.',
+              icon: Search
+            },
+            {
+              step: 3,
+              title: 'Buy Fractional Units',
+              desc: 'Start investing with as little as ₹35,000. Securely purchase your units online.',
+              icon: Wallet
+            },
+            {
+              step: 4,
+              title: 'Earn & Track',
+              desc: 'Receive monthly rental yields and track your portfolio\'s appreciation in real-time.',
+              icon: TrendingUp
+            }
+          ].map((item, index) => (
+            <div key={item.step} className="relative bg-card/50 backdrop-blur-sm border border-border/60 hover:border-primary/50 hover:bg-card rounded-2xl p-6 text-center transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
+              <div className="w-12 h-12 mx-auto rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold mb-5 ring-4 ring-background shadow-md shadow-primary/20 group-hover:scale-110 transition-transform duration-300">
+                <item.icon size={20} />
+              </div>
+              <div className="absolute -top-3 -right-3 text-6xl font-black text-muted-foreground/5 pointer-events-none group-hover:text-primary/5 transition-colors">
+                {item.step}
+              </div>
+              <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
             </div>
           ))}
         </div>
@@ -270,7 +373,7 @@ export default function HomePage() {
             Join 12,000+ investors earning passive income from India&apos;s finest properties. Start with as little as ₹35,000.
           </p>
           <button
-            onClick={() => router.push('/auth/login')}
+            onClick={() => router.push('/investor/dashboard')}
             className="h-11 px-8 rounded-lg bg-primary hover:bg-blue-600 text-white font-semibold text-sm transition-colors inline-flex items-center gap-2 relative"
           >
             Get Started Free <ArrowRight size={16} />

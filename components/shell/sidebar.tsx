@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, BarChart3, Briefcase, Bell, BookOpen,
   Building2, PlusCircle, Settings, LogOut, TrendingUp,
-  Star, Receipt, ChevronRight, User, FileCheck, Users, UserCog
+  Star, Receipt, ChevronRight, User, FileCheck, Users, UserCog, BellDot
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -23,7 +23,6 @@ const INVESTOR_NAV: NavItem[] = [
   { label: 'Watchlist', href: '/investor/watchlist', icon: Star },
   { label: 'Orders', href: '/investor/orders', icon: Receipt },
   { label: 'Alerts', href: '/investor/alerts', icon: Bell },
-  { label: 'Reports', href: '/investor/reports', icon: BarChart3 },
   { label: 'Profile', href: '/investor/profile', icon: User },
 ]
 
@@ -49,7 +48,6 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'Investors', href: '/admin/investors', icon: Users },
   { label: 'Developers', href: '/admin/developers', icon: UserCog },
   { label: 'Investment Requests', href: '/admin/investment-request', icon: Receipt },
-  { label: 'Notifications', href: '/admin/notifications', icon: Bell },
 ]
 
 interface SidebarProps {
@@ -59,9 +57,10 @@ interface SidebarProps {
   onLogout: () => void
   isOpen?: boolean
   setIsOpen?: (open: boolean) => void
+  unviewedAlertsCount?: number
 }
 
-export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen }: SidebarProps) {
+export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen, unviewedAlertsCount = 0 }: SidebarProps) {
   const pathname = usePathname()
   const navItems = role === 'admin' ? ADMIN_NAV : role === 'developer' ? DEVELOPER_NAV : INVESTOR_NAV
 
@@ -86,7 +85,7 @@ export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen
         </div>
         <div>
           <div className="text-foreground font-bold text-sm leading-none">Milestono</div>
-          <div className="text-primary text-[9px] uppercase tracking-[0.2em] mt-0.5 font-medium">Investors</div>
+          <div className="text-primary text-[9px] uppercase tracking-[0.2em] mt-0.5 font-medium">Investments</div>
         </div>
       </div>
 
@@ -106,6 +105,9 @@ export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
         {navItems.map(({ label, href, icon: Icon, badge }) => {
           const active = pathname.startsWith(href)
+          const isAlerts = label === 'Alerts'
+          const hasAlerts = isAlerts && unviewedAlertsCount > 0
+
           return (
             <Link
               key={href}
@@ -117,8 +119,12 @@ export function Sidebar({ role, userName, userEmail, onLogout, isOpen, setIsOpen
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
-              <Icon size={15} className={active ? 'text-primary' : 'text-muted-foreground group-hover:text-muted-foreground'} />
-              <span className="flex-1">{label}</span>
+              {hasAlerts ? (
+                <BellDot size={15} className={active ? 'text-primary' : 'text-muted-foreground group-hover:text-muted-foreground'} />
+              ) : (
+                <Icon size={15} className={active ? 'text-primary' : 'text-muted-foreground group-hover:text-muted-foreground'} />
+              )}
+              <span className="flex-1">{hasAlerts ? `Alerts (${unviewedAlertsCount})` : label}</span>
               {badge && (
                 <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-medium">{badge}</span>
               )}

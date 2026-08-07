@@ -1,12 +1,10 @@
-import { Header } from '@/components/layout/header'
+import { AppLayout } from '@/components/shell/app-layout'
 import { Card, CardContent } from '@/components/ui/card'
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      <main className="container mx-auto px-4 py-12 max-w-3xl">
+    <AppLayout allowGuest={true} hideSidebar={true} title="Privacy Policy">
+      <div className="container mx-auto px-4 py-12 max-w-3xl">
         <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
 
         <div className="space-y-8 text-muted-foreground">
@@ -103,7 +101,7 @@ export default function PrivacyPage() {
             <p>© 2026 Milestono Investors. All rights reserved.</p>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   )
 }

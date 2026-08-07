@@ -161,6 +161,8 @@ export interface AppNotification {
 export type InvestmentStatus = 'active' | 'sold' | 'stopped'
 
 export interface Investment {
+  [x: string]: string | undefined
+  [x: string]: string | undefined
   id: string
   userId: string
   propertyId: string
@@ -207,6 +209,7 @@ export interface PayoutRequest {
 }
 
 export interface Transaction {
+  [x: string]: Date
   investorName: string
   investorPhoto: any
   id: string

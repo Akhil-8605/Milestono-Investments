@@ -21,7 +21,7 @@ export default function BasicDetails() {
       setTickerLoading(true)
       setTickerError('')
       try {
-        const raw = sessionStorage.getItem('milestono_user')
+        const raw = localStorage.getItem('milestono_user')
         if (raw) {
           const parsed = JSON.parse(raw)
           const developerId = parsed.developerId

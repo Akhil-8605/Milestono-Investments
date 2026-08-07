@@ -24,7 +24,7 @@ export default function InvestorProfilePage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const userStr = sessionStorage.getItem('milestono_user')
+      const userStr = localStorage.getItem('milestono_user')
       if (!userStr) return
       const user = JSON.parse(userStr)
       setUserId(user.id)
@@ -85,10 +85,10 @@ export default function InvestorProfilePage() {
       if (data.success) {
         setProfile(formData)
         setEditing(false)
-        const raw = sessionStorage.getItem('milestono_user')
+        const raw = localStorage.getItem('milestono_user')
         if (raw) {
           const parsed = JSON.parse(raw)
-          sessionStorage.setItem('milestono_user', JSON.stringify({ ...parsed, name: formData.fullName }))
+          localStorage.setItem('milestono_user', JSON.stringify({ ...parsed, name: formData.fullName }))
         }
         toast.success('Profile updated successfully')
       } else {

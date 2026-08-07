@@ -18,7 +18,8 @@ import { DeveloperIdCard } from '@/components/developer/DeveloperIdCard'
 export default function PublicDeveloperProfilePage() {
   const router = useRouter()
   const params = useParams()
-  const devIdParam = params?.id
+  const idParam = params?.id
+  const devIdParam = Array.isArray(idParam) ? idParam[0] : idParam
 
   const [developer, setDeveloper] = useState<Developer | any | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
@@ -69,26 +70,27 @@ export default function PublicDeveloperProfilePage() {
         }
 
         if (!currentDevData) {
-          const userQuery = query(collection(db, 'users'), where('developerId', '==', devIdParam))
-          const userSnap = await getDocs(userQuery)
-          if (!userSnap.empty) {
-            currentDevData = { id: userSnap.docs[0].id, ...userSnap.docs[0].data() }
-          }
-        }
-
-        if (!currentDevData) {
-          const developerDoc = await getDoc(doc(db, 'users', devIdParam))
+          const developerDoc = await getDoc(doc(db, 'developers', devIdParam))
           if (developerDoc.exists()) {
             currentDevData = { id: developerDoc.id, ...developerDoc.data() }
           }
         }
 
+        // Normalize image fields
+        if (currentDevData) {
+          currentDevData.companyLogo = currentDevData.logo || currentDevData.companyLogo
+          currentDevData.companyBanner = currentDevData.banner || currentDevData.companyBanner
+        }
+
         setDeveloper(currentDevData)
 
-        const developerIdToMatch = currentDevData?.developerId || devIdParam
+        const uidsToMatch = Array.from(new Set([
+          currentDevData?.id, 
+          currentDevData?.developerId, 
+          devIdParam
+        ].filter(Boolean)))
 
-        const propertiesByDevIdQuery = query(collection(db, 'properties'), where('developerId', '==', developerIdToMatch))
-        const propertiesByDeveloperInfoQuery = query(collection(db, 'properties'), where('developerInfo.developerId', '==', developerIdToMatch))
+        const propertiesByDevIdQuery = query(collection(db, 'properties'), where('developerId', 'in', uidsToMatch))
 
         const handleSnapshot = (snap: any) => {
           snap.docs.forEach((doc: any) => {
@@ -99,7 +101,6 @@ export default function PublicDeveloperProfilePage() {
         }
 
         unsubscribeByDeveloperId = onSnapshot(propertiesByDevIdQuery, handleSnapshot)
-        unsubscribeByDeveloperInfo = onSnapshot(propertiesByDeveloperInfoQuery, handleSnapshot)
       } catch (err) {
         console.error('Error loading developer details:', err)
         setIsLoading(false)
@@ -110,7 +111,6 @@ export default function PublicDeveloperProfilePage() {
 
     return () => {
       unsubscribeByDeveloperId?.()
-      unsubscribeByDeveloperInfo?.()
     }
   }, [devIdParam])
 
@@ -398,10 +398,10 @@ export default function PublicDeveloperProfilePage() {
           {activeTab === 'verification' && (
             <div className="flex flex-col items-center justify-center py-6">
               <DeveloperIdCard
-                developerId={devIdParam}
+                developerId={developer?.developerId || devIdParam}
                 companyName={developer?.companyName || 'Milestono Developer'}
-                yearsEstablished={developer?.yearsEstablished || '10+ Years'}
-                mobileNumber={developer?.phone || '0000000000'}
+                yearsEstablished={developer?.yearEstablished || developer?.yearsEstablished || '10+ Years'}
+                mobileNumber={developer?.companyPhone || developer?.phone || '0000000000'}
                 officeAddress={developer?.officeAddress || 'Mumbai, India'}
                 companyLogo={developer?.companyLogo}
                 companyBanner={developer?.companyBanner}

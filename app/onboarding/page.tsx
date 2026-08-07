@@ -81,8 +81,8 @@ export default function OnboardingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('milestono_user')
-    const token = sessionStorage.getItem('milestono_token')
+    const raw = localStorage.getItem('milestono_user')
+    const token = localStorage.getItem('milestono_token')
 
     if (!raw || !token) {
       router.replace('/auth/login')
@@ -236,10 +236,10 @@ export default function OnboardingPage() {
         const json = await res.json()
         if (!json.success) throw new Error(json.error)
 
-        const raw = sessionStorage.getItem('milestono_user')
+        const raw = localStorage.getItem('milestono_user')
         if (raw) {
           const parsed = JSON.parse(raw)
-          sessionStorage.setItem('milestono_user', JSON.stringify({ ...parsed, name: fullName, role: 'investor', profileCompleted: true }))
+          localStorage.setItem('milestono_user', JSON.stringify({ ...parsed, name: fullName, role: 'investor', profileCompleted: true }))
         }
 
         try {
@@ -295,10 +295,10 @@ export default function OnboardingPage() {
                 body: JSON.stringify(payload)
               })
 
-              const raw = sessionStorage.getItem('milestono_user')
+              const raw = localStorage.getItem('milestono_user')
               if (raw) {
                 const parsed = JSON.parse(raw)
-                sessionStorage.setItem('milestono_user', JSON.stringify({ ...parsed, name: companyName, role: 'developer', profileCompleted: true }))
+                localStorage.setItem('milestono_user', JSON.stringify({ ...parsed, name: companyName, role: 'developer', profileCompleted: true }))
               }
 
               try {
@@ -737,7 +737,7 @@ export default function OnboardingPage() {
 
               <div className="w-full overflow-hidden flex justify-center py-4 bg-slate-50/50 rounded-2xl border border-slate-100">
                 <DeveloperIdCard
-                  developerId={JSON.parse(sessionStorage.getItem('milestono_user') || '{}')?.developerId || 'MI-DEV-TBD'}
+                  developerId={JSON.parse(localStorage.getItem('milestono_user') || '{}')?.developerId || 'MI-DEV-TBD'}
                   companyName={companyName}
                   yearsEstablished={yearEstablished ? `${new Date().getFullYear() - parseInt(yearEstablished)} Years` : '10+ Years'}
                   mobileNumber={mobile}

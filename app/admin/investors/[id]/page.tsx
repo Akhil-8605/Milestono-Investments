@@ -25,7 +25,7 @@ function getInvestorPhone(investor: any) {
 }
 
 function getInvestorPhoto(investor: any) {
-  return investor.photo || investor.avatar || investor.profileImage || null
+  return investor.profileImage || investor.profilePic || null
 }
 
 function getInvestorLocation(investor: any) {
@@ -172,16 +172,16 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          <div className="grid w-full max-w-md grid-cols-2 gap-4 sm:grid-cols-3">
-            <Card className="p-5 rounded-3xl border-border/60 bg-card/80">
+          <div className="grid w-fit grid-cols-1 gap-4 md:grid-cols-3">
+            <Card className="p-5 rounded-3xl border-border/60 bg-card/80 w-fit">
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Invested</p>
               <p className="mt-3 text-2xl font-black text-foreground">₹{totalInvested.toLocaleString('en-IN')}</p>
             </Card>
-            <Card className="p-5 rounded-3xl border-border/60 bg-card/80">
+            <Card className="p-5 rounded-3xl border-border/60 bg-card/80 w-full">
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Units</p>
               <p className="mt-3 text-2xl font-black text-foreground">{totalUnits}</p>
             </Card>
-            <Card className="p-5 rounded-3xl border-border/60 bg-card/80">
+            <Card className="p-5 rounded-3xl border-border/60 bg-card/80 w-fit">
               <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Current value</p>
               <p className="mt-3 text-2xl font-black text-emerald-500">₹{currentValue.toLocaleString('en-IN')}</p>
             </Card>
@@ -210,8 +210,11 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
                   </div>
                   <div>
                     <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">Profile summary</p>
-                    <p className="mt-3 text-lg font-semibold text-foreground">{investor.kycVerified ? 'KYC verified investor' : 'Pending KYC review'}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{investor.companyName || investor.affiliation || 'Registered investor account'}</p>
+                    <div className="mt-3 space-y-1">
+                      <p className="text-lg font-semibold text-foreground">{investor.occupation || 'Investor'}</p>
+                      {investor.annualIncome && <p className="text-sm text-muted-foreground">Income: {investor.annualIncome}</p>}
+                      {investor.pan && <p className="text-sm text-muted-foreground font-mono">PAN: {investor.pan}</p>}
+                    </div>
                   </div>
                 </div>
 
@@ -240,7 +243,28 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
               <div className="space-y-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Account status</p>
-                  <p className="mt-3 text-base font-semibold text-foreground">{investor.role || 'investor'}</p>
+                  <p className="mt-3 text-base font-semibold text-foreground">{investor.status || 'inactive'}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-3">Verification Documents</p>
+                  <div className="space-y-3">
+                    {investor.panUrl ? (
+                      <a href={investor.panUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline font-medium">
+                        <Layers className="w-4 h-4" /> View PAN Card Document
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">PAN Card not uploaded</p>
+                    )}
+                    
+                    {investor.aadhaarUrl ? (
+                      <a href={investor.aadhaarUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline font-medium">
+                        <Layers className="w-4 h-4" /> View Aadhaar Card Document
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aadhaar Card not uploaded</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-3xl bg-muted/60 p-5 border border-border/60">
@@ -253,7 +277,6 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
                     <CheckCircle2 className="w-5 h-5" />
                     <p className="text-sm font-semibold">Verified investment profile</p>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-3">Review this investor’s profile, portfolio, and transaction activity from a single admin view.</p>
                 </div>
               </div>
             </Card>
@@ -327,7 +350,18 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
             ) : (
               <div className="grid gap-4">
                 {transactions.map((transaction) => {
-                  const transactionDate = transaction.timestamp ? new Date(transaction.timestamp as any) : new Date()
+                  let transactionDate = new Date()
+                  const timeSource = transaction.createdAt || transaction.timestamp
+                  if (timeSource) {
+                    if (typeof (timeSource as any).toDate === 'function') {
+                      transactionDate = (timeSource as any).toDate()
+                    } else {
+                      const parsed = new Date(timeSource as any)
+                      if (!isNaN(parsed.getTime())) {
+                        transactionDate = parsed
+                      }
+                    }
+                  }
                   return (
                     <Card key={transaction.id} className="rounded-3xl border-border/60 p-6 bg-card/80">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

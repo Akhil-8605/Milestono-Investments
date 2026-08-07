@@ -19,6 +19,7 @@ export default function InvestorAlertsPage() {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState<AppNotification | null>(null)
+  const [developersMap, setDevelopersMap] = useState<Record<string, any>>({})
 
   useEffect(() => {
     if (!user) return
@@ -41,7 +42,16 @@ export default function InvestorAlertsPage() {
       toast.error('Failed to load realtime alerts')
       setIsLoading(false)
     })
-    return () => unsubscribe()
+
+    const unsubDevs = onSnapshot(collection(db, 'developers'), (snap) => {
+      const devMap: Record<string, any> = {}
+      snap.docs.forEach(doc => {
+        devMap[doc.id] = { id: doc.id, ...doc.data() }
+      })
+      setDevelopersMap(devMap)
+    })
+
+    return () => { unsubscribe(); unsubDevs(); }
   }, [user])
 
   const markAsRead = async (id: string, currentlyRead: boolean) => {
@@ -63,38 +73,55 @@ export default function InvestorAlertsPage() {
 
   const renderNotification = (n: AppNotification) => {
     const date = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt || Date.now())
-    const devId = n.metadata?.developerId || (n as any).developerId || 'DEV001'
+    const originalDevId = n.metadata?.developerId || (n as any).developerId || 'DEV001'
+    const devData = developersMap[originalDevId] || {}
+    const devId = devData.developerId || originalDevId.substring(0, 6).toUpperCase()
 
-    if (n.type === 'developer_reply' || n.type === 'developer_message') {
+    if (n.type === 'developer_reply' || n.type === 'developer_message' || n.type === 'admin_message' || n.type === 'message') {
+      const isAdmin = n.type === 'admin_message' || n.metadata?.isAdmin === true
+      const senderName = isAdmin ? 'Milestono Admin' : (devData.companyName || n.metadata?.developerCompany || 'Developer Partner')
+      const senderTitle = isAdmin ? 'Message from Admin' : 'Message from Developer'
+      const iconBg = isAdmin ? 'bg-primary/10' : 'bg-indigo-500/10'
+      const iconColor = isAdmin ? 'text-primary' : 'text-indigo-500'
+      const borderColor = isAdmin ? 'border-primary/40 shadow-primary/10' : 'border-indigo-500/40 shadow-indigo-500/10'
+      const hoverBorder = isAdmin ? 'hover:border-primary/60' : 'hover:border-indigo-500/60'
+      
+      const developerLogo = devData.logo || devData.companyLogo || n.metadata?.developerLogo
+      const developerBanner = devData.banner || devData.companyBanner || n.metadata?.developerBanner
+      const developerPhone = devData.companyPhone || devData.phone || n.metadata?.developerPhone
+      const developerAddress = devData.officeAddress || n.metadata?.developerAddress
+
       return (
-        <Card key={n.id} className={`p-6 border ${n.read ? 'border-border/50 opacity-80' : 'border-indigo-500/40 shadow-lg shadow-indigo-500/10'} transition-all rounded-2xl bg-gradient-to-br from-card via-card to-indigo-500/5 hover:border-indigo-500/60`}>
+        <Card key={n.id} className={`p-6 border ${n.read ? 'border-border/50 opacity-80' : `${borderColor} shadow-lg`} transition-all rounded-2xl bg-gradient-to-br from-card via-card to-muted/20 ${hoverBorder}`}>
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1 space-y-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-                  <Mail className="w-4 h-4" />
+                <div className={`w-8 h-8 rounded-full ${iconBg} flex items-center justify-center ${iconColor} shrink-0`}>
+                  {isAdmin ? <ShieldCheck className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h3 className="font-bold text-base leading-tight text-foreground">{n.title}</h3>
+                  <h3 className="font-bold text-base leading-tight text-foreground">{senderTitle}</h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5">{format(date, 'MMM dd, yyyy • hh:mm a')}</p>
                 </div>
-                {!n.read && <span className="ml-auto bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">New</span>}
+                {!n.read && <span className={`ml-auto ${isAdmin ? 'bg-primary' : 'bg-indigo-500'} text-white text-[10px] font-bold px-2 py-0.5 rounded-full`}>New</span>}
               </div>
               
-              <div className="bg-background/80 backdrop-blur-md p-4 rounded-xl border border-border/60 border-l-4 border-l-indigo-500">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Message Preview:</p>
+              <div className={`bg-background/80 backdrop-blur-md p-4 rounded-xl border border-border/60 border-l-4 ${isAdmin ? 'border-l-primary' : 'border-l-indigo-500'}`}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Subject: {n.title}</p>
                 <p className="text-sm font-medium text-foreground line-clamp-3">"{n.message}"</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Button variant="outline" size="sm" onClick={() => handleOpenMessage(n)} className="gap-2 text-xs font-bold rounded-xl border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10">
+                <Button variant="outline" size="sm" onClick={() => handleOpenMessage(n)} className={`gap-2 text-xs font-bold rounded-xl ${isAdmin ? 'border-primary/30 text-primary hover:bg-primary/10' : 'border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10'}`}>
                   <Mail className="w-3.5 h-3.5" /> Read Full Message
                 </Button>
-                <Link href={`/developers/${devId}`}>
-                  <Button variant="secondary" size="sm" className="gap-1.5 text-xs font-bold rounded-xl">
-                    <Building2 className="w-3.5 h-3.5" /> Developer Profile <ArrowRight className="w-3 h-3" />
-                  </Button>
-                </Link>
+                {!isAdmin && (
+                  <Link href={`/developers/${devId}`}>
+                    <Button variant="secondary" size="sm" className="gap-1.5 text-xs font-bold rounded-xl bg-muted/50 hover:bg-muted border border-border/50">
+                      <Building2 className="w-3.5 h-3.5" /> View Developer Profile <ArrowRight className="w-3 h-3" />
+                    </Button>
+                  </Link>
+                )}
                 {n.metadata?.propertySymbol && (
                   <span className="text-xs font-semibold text-muted-foreground bg-muted px-3 py-1.5 rounded-full flex items-center gap-1.5 ml-auto">
                     <Building2 className="w-3 h-3 text-primary" /> {n.metadata.propertySymbol}
@@ -103,56 +130,63 @@ export default function InvestorAlertsPage() {
               </div>
             </div>
 
-            {/* Aesthetic Developer Profile Card */}
-            <div className="w-full md:w-72 bg-card border border-border/60 rounded-2xl p-4 shrink-0 overflow-hidden relative shadow-sm">
-              {n.metadata?.developerBanner ? (
-                <div className="absolute top-0 left-0 right-0 h-16 overflow-hidden">
-                  <img src={n.metadata.developerBanner} className="w-full h-full object-cover opacity-60" alt="Banner" />
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-card" />
-                </div>
-              ) : (
-                <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-r from-indigo-500/20 to-purple-500/20" />
-              )}
-              
-              <div className="relative z-10 pt-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-background border shadow-md shrink-0">
-                    {n.metadata?.developerLogo ? (
-                      <img src={n.metadata.developerLogo} alt="Developer Logo" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold">
-                        <Building2 className="w-6 h-6" />
-                      </div>
-                    )}
+            {/* Aesthetic Profile Card */}
+            {!isAdmin && (
+              <div className="w-full md:w-72 bg-card border border-border/60 rounded-2xl p-4 shrink-0 overflow-hidden relative shadow-sm">
+                {developerBanner ? (
+                  <div className="absolute top-0 left-0 right-0 h-16 overflow-hidden">
+                    <img src={developerBanner} className="w-full h-full object-cover opacity-60" alt="Banner" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-card" />
                   </div>
-                  <div>
-                    <h4 className="font-bold text-sm leading-tight text-foreground line-clamp-1">{n.metadata?.developerCompany || 'Developer Partner'}</h4>
-                    <span className="text-[10px] text-indigo-500 font-mono bg-indigo-500/10 px-2 py-0.5 rounded-md font-semibold mt-1 inline-block">
-                      ID: {devId}
-                    </span>
+                ) : (
+                  <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-r from-indigo-500/20 to-purple-500/20" />
+                )}
+                
+                <div className="relative z-10 pt-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-background border shadow-md shrink-0">
+                      {developerLogo ? (
+                        <img src={developerLogo} alt="Developer Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold">
+                          <Building2 className="w-6 h-6" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm leading-tight text-foreground line-clamp-1">{senderName}</h4>
+                      <span className="text-[10px] text-indigo-500 font-mono bg-indigo-500/10 px-2 py-0.5 rounded-md font-semibold mt-1 inline-block">
+                        ID: {devId}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-1.5 text-xs text-muted-foreground border-t border-border/40 pt-3 mt-2">
-                  {n.metadata?.developerPhone && (
-                    <p className="flex items-center gap-2 font-medium">
-                      <Phone className="w-3 h-3 text-indigo-500 shrink-0" /> {n.metadata.developerPhone}
-                    </p>
-                  )}
-                  {n.metadata?.developerAddress && (
-                    <p className="flex items-start gap-2 text-[11px]">
-                      <MapPin className="w-3 h-3 text-indigo-500 shrink-0 mt-0.5" /> 
-                      <span className="line-clamp-2">{n.metadata.developerAddress}</span>
-                    </p>
-                  )}
-                  <div className="pt-2">
-                    <Link href={`/developers/${devId}`} className="text-xs font-bold text-indigo-500 hover:underline flex items-center gap-1">
-                      View Full Portfolio <ExternalLink className="w-3 h-3" />
-                    </Link>
+                  <div className="space-y-1.5 text-xs text-muted-foreground border-t border-border/40 pt-3 mt-2">
+                    {developerPhone && (
+                      <p className="flex items-center gap-2 font-medium">
+                        <Phone className="w-3 h-3 text-indigo-500 shrink-0" /> {developerPhone}
+                      </p>
+                    )}
+                    {developerAddress && (
+                      <p className="flex items-start gap-2 text-[11px]">
+                        <MapPin className="w-3 h-3 text-indigo-500 shrink-0 mt-0.5" /> 
+                        <span className="line-clamp-2">{developerAddress}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+            
+            {isAdmin && (
+              <div className="w-full md:w-64 bg-primary/5 border border-primary/20 rounded-2xl p-6 shrink-0 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                  <ShieldCheck className="w-8 h-8 text-primary" />
+                </div>
+                <h4 className="font-bold text-sm text-foreground">Milestono Admin</h4>
+                <p className="text-xs text-muted-foreground mt-1">Official platform notification</p>
+              </div>
+            )}
           </div>
         </Card>
       )
@@ -242,18 +276,18 @@ export default function InvestorAlertsPage() {
                 <div className="bg-card border rounded-xl p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center border shrink-0">
-                      {selectedNotification.metadata?.developerLogo ? (
-                        <img src={selectedNotification.metadata.developerLogo} className="w-full h-full object-cover" />
+                      {developersMap[selectedNotification.metadata?.developerId || '']?.logo || selectedNotification.metadata?.developerLogo ? (
+                        <img src={developersMap[selectedNotification.metadata?.developerId || '']?.logo || selectedNotification.metadata?.developerLogo} className="w-full h-full object-cover" />
                       ) : (
                         <Building2 className="w-5 h-5 text-primary" />
                       )}
                     </div>
                     <div>
-                      <p className="font-bold text-sm">{selectedNotification.metadata?.developerCompany || 'Developer Partner'}</p>
-                      <p className="text-xs text-muted-foreground">ID: {selectedNotification.metadata?.developerId || (selectedNotification as any).developerId || 'DEV001'}</p>
+                      <p className="font-bold text-sm">{developersMap[selectedNotification.metadata?.developerId || '']?.companyName || selectedNotification.metadata?.developerCompany || 'Developer Partner'}</p>
+                      <p className="text-xs text-muted-foreground">ID: {developersMap[selectedNotification.metadata?.developerId || '']?.developerId || (selectedNotification.metadata?.developerId || '').substring(0, 6).toUpperCase()}</p>
                     </div>
                   </div>
-                  <Link href={`/developers/${selectedNotification.metadata?.developerId || (selectedNotification as any).developerId || 'DEV001'}`}>
+                  <Link href={`/developers/${developersMap[selectedNotification.metadata?.developerId || '']?.developerId || (selectedNotification.metadata?.developerId || '').substring(0, 6).toUpperCase()}`}>
                     <Button size="sm" className="gap-1 rounded-xl">
                       View Profile <ArrowRight className="w-3.5 h-3.5" />
                     </Button>

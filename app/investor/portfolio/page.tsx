@@ -233,8 +233,8 @@ export default function PortfolioPage() {
                     >
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: typeColor.bg }}>
-                            <span className="text-[9px] font-bold" style={{ color: typeColor.text }}>{h.symbol?.slice(0, 2)}</span>
+                          <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                            <span className="text-primary text-[10px] font-bold">{h.symbol?.slice(0, 2)}</span>
                           </div>
                           <div>
                             <div className="text-foreground text-xs font-bold">{h.symbol}</div>

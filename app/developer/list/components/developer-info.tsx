@@ -8,7 +8,7 @@ export default function DeveloperInfo({ developerId }: { developerId: string }) 
   const { register, setValue, formState: { errors } } = useFormContext<PropertyFormValues>()
   
   useEffect(() => {
-    const raw = sessionStorage.getItem('milestono_user')
+    const raw = localStorage.getItem('milestono_user')
     if (raw) {
       const parsed = JSON.parse(raw)
       setValue('developerInfo.companyName', parsed.name || '', { shouldValidate: true })

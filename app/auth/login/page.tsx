@@ -7,15 +7,24 @@ import { Eye, EyeOff, TrendingUp, Shield, Building2, ArrowRight, Loader2 } from 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { toast } from 'sonner'
 
-const STATS = [
-  { label: 'AUM', value: '₹140+ Cr' },
-  { label: 'Properties', value: '18' },
-  { label: 'Avg. Yield', value: '9.4%' },
-  { label: 'Investors', value: '12.4k+' },
-]
+const AVERAGE_YIELD = '9.4%'
+
+const formatCompactIndianCurrency = (value: number) => {
+  if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)} Cr`
+  if (value >= 100000) return `₹${(value / 100000).toFixed(1)} L`
+  if (value >= 1000) return `₹${(value / 1000).toFixed(1)} K`
+  return `₹${value.toLocaleString('en-IN')}`
+}
+
+const getPropertyValue = (property: any) => {
+  const price = property.marketData?.currentPrice ?? property.unitPrice ?? 0
+  const units = property.totalUnits ?? 0
+  return price * units
+}
 
 const FEATURES = [
   {
@@ -36,6 +45,7 @@ const FEATURES = [
 ]
 
 
+import { AnimatedNumber } from '@/components/ui/animated-counter'
 import { Suspense } from 'react'
 
 function LoginContent() {
@@ -48,9 +58,37 @@ function LoginContent() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
   const [time, setTime] = useState('')
+  const [stats, setStats] = useState([
+    { label: 'AUM', value: '—' },
+    { label: 'Properties', value: '—' },
+    { label: 'Avg. Yield', value: AVERAGE_YIELD },
+    { label: 'Investors', value: '—' },
+  ])
 
   useEffect(() => {
-    // Empty effect to ensure client-side hydration completes before doing any DOM manipulation
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/stats')
+        const json = await res.json()
+        if (json.success) {
+          const { totalAum, propertyCount, investorCount } = json.data
+          setStats([
+            { label: 'AUM', value: formatCompactIndianCurrency(totalAum) },
+            { label: 'Properties', value: propertyCount.toLocaleString('en-IN') },
+            { label: 'Avg. Yield', value: AVERAGE_YIELD },
+            { label: 'Investors', value: investorCount.toLocaleString('en-IN') },
+          ])
+        }
+      } catch (e) {
+        console.error('Failed to fetch stats', e)
+      }
+    }
+    fetchStats()
+    const statsInterval = setInterval(fetchStats, 10000)
+
+    return () => {
+      clearInterval(statsInterval)
+    }
   }, [])
 
   const handleSuccessAuth = async (user: any) => {
@@ -62,8 +100,10 @@ function LoginContent() {
       photoURL: user.photoURL || ''
     }
 
-    sessionStorage.setItem('milestono_token', token)
-    sessionStorage.setItem('milestono_user', JSON.stringify(userData))
+    const expiresAt = new Date().getTime() + 7 * 24 * 60 * 60 * 1000
+    localStorage.setItem('milestono_token', token)
+    localStorage.setItem('milestono_user', JSON.stringify(userData))
+    localStorage.setItem('milestono_expires_at', expiresAt.toString())
 
     try {
       const res = await fetch(`/api/profile?userId=${user.uid}`)
@@ -181,9 +221,9 @@ function LoginContent() {
 
           {/* Stats */}
           <div className="grid grid-cols-4 gap-6 border-t border-border pt-6">
-            {STATS.map(({ label, value }) => (
+            {stats.map(({ label, value }) => (
               <div key={label}>
-                <div className="text-foreground text-xl font-bold num">{value}</div>
+                <AnimatedNumber value={value} />
                 <div className="text-muted-foreground text-[11px] mt-0.5 leading-tight">{label}</div>
               </div>
             ))}

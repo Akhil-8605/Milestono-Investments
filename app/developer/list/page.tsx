@@ -61,7 +61,7 @@ function DeveloperListPropertyForm() {
   })
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('milestono_user')
+    const raw = localStorage.getItem('milestono_user')
     if (raw) {
       const parsed = JSON.parse(raw)
       if (parsed.developerId) {

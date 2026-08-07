@@ -23,15 +23,14 @@ export default function LocationDetails() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !apiKey) return
-    if ((window as any).google?.maps) return
+    if ((window as any).google?.maps?.Map) return
 
     const existingScript = document.getElementById('google-maps-script')
     if (!existingScript) {
       const script = document.createElement('script')
       script.id = 'google-maps-script'
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`
       script.async = true
-      script.defer = true
       document.head.appendChild(script)
     }
   }, [apiKey])

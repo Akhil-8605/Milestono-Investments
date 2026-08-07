@@ -173,7 +173,39 @@ export default function DeveloperDashboard() {
         </div>
 
         {loading ? (
-          <div className="h-64 flex items-center justify-center text-primary font-bold animate-pulse text-lg">Aggregating Global Metrics...</div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm h-[160px] flex flex-col relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+                    <div className="h-9 w-9 bg-muted animate-pulse rounded-xl" />
+                  </div>
+                  <div className="h-8 w-32 bg-muted animate-pulse rounded mt-auto" />
+                  <div className="h-3 w-40 bg-muted animate-pulse rounded mt-3" />
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+              <div className="xl:col-span-2 bg-card border border-border/50 rounded-3xl p-8 shadow-sm flex flex-col h-[400px]">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <div className="h-6 w-48 bg-muted animate-pulse rounded mb-2" />
+                    <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+                  </div>
+                  <div className="h-8 w-24 bg-muted animate-pulse rounded-xl" />
+                </div>
+                <div className="flex-1 w-full bg-muted/30 animate-pulse rounded-xl" />
+              </div>
+              <div className="h-fit space-y-6">
+                <div className="bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] p-6 shadow-sm h-[200px] animate-pulse" />
+                <div className="bg-card/60 backdrop-blur-xl border border-border rounded-[1.5rem] p-6 shadow-sm h-[140px] animate-pulse" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-6 mt-6">
+              <div className="bg-card border border-border/50 rounded-3xl shadow-sm h-[300px] animate-pulse" />
+            </div>
+          </>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">

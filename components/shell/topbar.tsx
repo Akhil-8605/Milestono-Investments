@@ -48,7 +48,7 @@ export function Topbar({ title, subtitle, onMenuClick, isGuest }: TopbarProps) {
     <div className="h-[52px] bg-sidebar border-b border-border flex items-center px-5 gap-4 shrink-0">
       {/* Mobile menu button */}
       {!isGuest && (
-        <button 
+        <button
           onClick={onMenuClick}
           className="md:hidden h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 transition-colors hover:bg-secondary"
         >
@@ -114,11 +114,7 @@ export function Topbar({ title, subtitle, onMenuClick, isGuest }: TopbarProps) {
           </button>
         </div>
       ) : (
-        /* Bell */
-        <button className="relative h-8 w-8 rounded-lg bg-muted hover:bg-secondary flex items-center justify-center transition-colors shrink-0">
-          <Bell size={14} className="text-muted-foreground" />
-          <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
-        </button>
+        <></>
       )}
     </div>
   )

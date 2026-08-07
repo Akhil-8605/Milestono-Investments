@@ -145,10 +145,14 @@ export default function RelationsPage() {
       await createNotification(
         notifyUser.id,
         'investor',
-        'general',
+        'developer_message',
         notifyTitle,
         notifyMsg,
-        { senderName: user?.name, senderRole: 'Developer' }
+        { 
+          senderName: user?.name, 
+          senderRole: 'Developer',
+          developerId: user?.id
+        }
       )
       toast.success('Notification sent successfully to ' + notifyUser.name)
       setNotifyUser(null)
