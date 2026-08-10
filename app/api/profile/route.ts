@@ -14,16 +14,36 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    let doc = await db.collection('investors').doc(userId).get()
-    if (!doc.exists) {
-      doc = await db.collection('developers').doc(userId).get()
+    let isDev = false
+    let doc = await db.collection('developers').doc(userId).get()
+    if (doc.exists) {
+      isDev = true
+    } else {
+      doc = await db.collection('investors').doc(userId).get()
     }
 
     if (!doc.exists) {
-      return NextResponse.json({ success: false, error: 'Profile not found' }, { status: 404 })
+      // Fallback response with auto-generated developerId for developer role
+      const fallbackDevId = `DEV${userId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase().padEnd(3, '0')}`
+      return NextResponse.json({ 
+        success: true, 
+        data: { 
+          id: userId, 
+          userId, 
+          role: 'developer', 
+          developerId: fallbackDevId 
+        } 
+      })
     }
 
-    return NextResponse.json({ success: true, data: doc.data() })
+    const data = doc.data() || {}
+    if (isDev && !data.developerId) {
+      const generatedId = `DEV${userId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase().padEnd(3, '0')}`
+      await db.collection('developers').doc(userId).set({ developerId: generatedId }, { merge: true })
+      data.developerId = generatedId
+    }
+
+    return NextResponse.json({ success: true, data })
   } catch (error) {
     console.error('Error fetching profile:', error)
     return NextResponse.json({ success: false, error: 'Failed to fetch profile' }, { status: 500 })

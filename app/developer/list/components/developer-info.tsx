@@ -1,23 +1,52 @@
 import { useFormContext } from 'react-hook-form'
 import { PropertyFormValues } from '@/lib/schemas/property'
 import { Input } from '@/components/ui/input'
-import { Building } from 'lucide-react'
-import { useEffect } from 'react'
+import { Building, Lock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useSession } from '@/components/shell/session-context'
 
 export default function DeveloperInfo({ developerId }: { developerId: string }) {
   const { register, setValue, formState: { errors } } = useFormContext<PropertyFormValues>()
+  const { user } = useSession()
+  const [fetchedId, setFetchedId] = useState(developerId || '')
   
   useEffect(() => {
-    const raw = localStorage.getItem('milestono_user')
+    let isSubscribed = true
+    const activeUserId = user?.id || (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('milestono_user') || '{}')?.id)
+
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('milestono_user') : null
     if (raw) {
       const parsed = JSON.parse(raw)
-      setValue('developerInfo.companyName', parsed.name || '', { shouldValidate: true })
-      setValue('developerInfo.email', parsed.email || '', { shouldValidate: true })
-      if (developerId) {
-        setValue('developerInfo.developerId', developerId, { shouldValidate: true })
+      setValue('developerInfo.companyName', parsed.name || user?.name || '', { shouldValidate: true })
+      setValue('developerInfo.email', parsed.email || user?.email || '', { shouldValidate: true })
+    }
+
+    const loadProfileDevId = async () => {
+      if (!activeUserId) return
+      try {
+        const res = await fetch(`/api/profile?userId=${activeUserId}`)
+        const json = await res.json()
+        if (json.success && json.data?.developerId && isSubscribed) {
+          setFetchedId(json.data.developerId)
+          setValue('developerInfo.developerId', json.data.developerId, { shouldValidate: true })
+        } else if (developerId && isSubscribed) {
+          setValue('developerInfo.developerId', developerId, { shouldValidate: true })
+        } else if (isSubscribed) {
+          const fallback = `DEV${activeUserId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase().padEnd(3, '0')}`
+          setFetchedId(fallback)
+          setValue('developerInfo.developerId', fallback, { shouldValidate: true })
+        }
+      } catch (err) {
+        console.error('Error fetching developer profile ID:', err)
+        if (developerId && isSubscribed) {
+          setValue('developerInfo.developerId', developerId, { shouldValidate: true })
+        }
       }
     }
-  }, [developerId, setValue])
+
+    loadProfileDevId()
+    return () => { isSubscribed = false }
+  }, [developerId, user, setValue])
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -39,12 +68,19 @@ export default function DeveloperInfo({ developerId }: { developerId: string }) 
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Developer ID *</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+            <span>Developer ID *</span>
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground normal-case font-normal">
+              <Lock className="w-3 h-3 text-emerald-500" /> System Assigned
+            </span>
+          </label>
           <Input 
             {...register('developerInfo.developerId')} 
-            className="h-11 bg-muted/50 text-foreground font-mono uppercase"
+            disabled
+            readOnly
+            className="h-11 bg-muted/70 text-foreground font-mono font-bold uppercase cursor-not-allowed opacity-90 border-emerald-500/30"
           />
-          <p className="text-[10px] text-muted-foreground">Unique identifier assigned to your company</p>
+          <p className="text-[10px] text-emerald-600 font-medium">Auto-fetched from developer profile (read-only)</p>
           {errors.developerInfo?.developerId && <p className="text-[10px] text-red-500">{errors.developerInfo.developerId.message}</p>}
         </div>
 

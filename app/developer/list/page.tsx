@@ -61,14 +61,24 @@ function DeveloperListPropertyForm() {
   })
 
   useEffect(() => {
-    const raw = localStorage.getItem('milestono_user')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed.developerId) {
-        setDeveloperId(parsed.developerId)
+    const loadDevId = async () => {
+      const activeUserId = user?.id || (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('milestono_user') || '{}')?.id)
+      if (activeUserId) {
+        try {
+          const res = await fetch(`/api/profile?userId=${activeUserId}`)
+          const json = await res.json()
+          if (json.success && json.data?.developerId) {
+            setDeveloperId(json.data.developerId)
+          } else if ((user as any)?.developerId) {
+            setDeveloperId((user as any).developerId)
+          }
+        } catch (e) {
+          console.error(e)
+        }
       }
     }
-  }, [])
+    loadDevId()
+  }, [user])
 
   useEffect(() => {
     const editSymbol = searchParams.get('edit')
@@ -80,8 +90,7 @@ function DeveloperListPropertyForm() {
         try {
           const q = query(
             collection(db, 'properties'), 
-            where('symbol', '==', editSymbol),
-            where('developerId', '==', user.id)
+            where('symbol', '==', editSymbol)
           )
           const snap = await getDocs(q)
           if (!snap.empty) {
@@ -138,13 +147,15 @@ function DeveloperListPropertyForm() {
                 contactPerson: user?.name || '',
                 mobile: user?.phone || '0000000000',
                 email: user?.email || '',
+                website: '',
               }
             }
 
             methods.reset(formDataToReset)
           }
         } catch (err) {
-          toast.error('Failed to load property for editing')
+          console.error(err)
+          toast.error('Failed to load property for edit')
         } finally {
           setIsFetchingEdit(false)
         }
@@ -192,6 +203,7 @@ function DeveloperListPropertyForm() {
     try {
       const totalUnits = data.investmentInfo.totalInvestmentUnits
       const unitPrice = data.investmentInfo.totalPropertyPrice / totalUnits
+      const devCompId = data.developerInfo?.developerId || developerId || (user as any)?.developerId || `DEV${user?.id?.substring(0, 3).toUpperCase()}`
 
       const payload = {
         symbol: data.basicDetails.tickerId,
@@ -210,12 +222,17 @@ function DeveloperListPropertyForm() {
         unitsOnHold: 0,
         unitPrice: unitPrice,
         developerId: user?.id,
+        userId: user?.id,
         status: 'pending_approval',
         adminMessage: null, // Reset rejection message on resubmission
         updatedAt: new Date().toISOString(),
-        globalId: `${data.developerInfo.developerId}-${data.basicDetails.tickerId}`,
+        globalId: `${devCompId}-${data.basicDetails.tickerId}`,
         expectedYield: data.investmentInfo.rentalYield || 0,
         occupancyRate: 100,
+        developerInfo: {
+          ...data.developerInfo,
+          developerId: devCompId,
+        },
         documents: {
           termsUrl: data.legalVerification.ownershipProofUrl,
           prospectusUrl: data.media.brochurePdf || '',

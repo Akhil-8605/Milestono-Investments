@@ -6,22 +6,18 @@ import { Button } from '@/components/ui/button'
 import { useState, useEffect } from 'react'
 import { Menu, X } from 'lucide-react'
 
+import { useSession } from '@/components/shell/session-context'
+
 export function Header() {
   const router = useRouter()
   const pathname = usePathname()
+  const { user: sessionUser, logout } = useSession()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [userRole, setUserRole] = useState<string | null>(null)
 
-  useEffect(() => {
-    const user = localStorage.getItem('milestono_user')
-    if (user) {
-      setUserRole(JSON.parse(user).role)
-    }
-  }, [])
+  const userRole = sessionUser?.role || null
 
   const handleLogout = () => {
-    localStorage.removeItem('milestono_auth_token')
-    localStorage.removeItem('milestono_user')
+    logout()
     router.push('/auth/login')
   }
 

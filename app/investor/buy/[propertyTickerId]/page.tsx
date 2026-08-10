@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Property } from '@/lib/types'
 import { Building2, Loader2, IndianRupee, ShieldCheck, Upload, Landmark, CheckCircle2, FileImage, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { createNotification } from '@/lib/notifications'
 import { useSession } from '@/components/shell/session-context'
 import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -319,21 +320,37 @@ export default function InvestorBuyPage({ params }: { params: Promise<{ property
         createdAt: serverTimestamp()
       }).catch(console.error)
 
-      // Add Developer Notification
-      if (property?.developerId) {
-        await addDoc(collection(db, 'notifications'), {
-          userId: property.developerId,
-          role: 'developer',
-          type: 'investment_received',
-          title: 'New Property Investment Received',
-          message: `${user!.name || 'An investor'} purchased ${units} units of ${property.name} (${property.symbol}) totaling ₹${totalAmount.toLocaleString('en-IN')}.`,
-          propertyId: property.id,
-          propertySymbol: property.symbol,
-          investorId: user!.id,
-          investorName: user!.name || 'Investor',
-          read: false,
-          createdAt: serverTimestamp()
-        }).catch(console.error)
+      // Add Developer Notification(s)
+      const devCandidateIds = Array.from(
+        new Set([
+          property?.developerId,
+          property?.developerInfo?.developerId,
+          (property as any)?.developerInfo?.id,
+          (property as any)?.userId,
+        ].filter(Boolean))
+      ) as string[]
+
+      for (const targetDevId of devCandidateIds) {
+        await createNotification(
+          targetDevId,
+          'developer',
+          'investment_received',
+          'New Property Investment Received',
+          `${user!.name || 'An investor'} purchased ${units} units of ${property!.name} (${property!.symbol}) totaling ₹${totalAmount.toLocaleString('en-IN')}.`,
+          {
+            propertyId: property!.id,
+            propertySymbol: property!.symbol,
+            propertyName: property!.name,
+            units,
+            unitPrice: currentPrice,
+            totalAmount,
+            investorId: user!.id,
+            investorName: user!.name || 'Verified Investor',
+            investorEmail: user!.email || '',
+            investorPhone: user!.phone || '',
+            paymentMethod: method === 'razorpay_direct' ? 'Razorpay Direct' : 'NEFT Bank Transfer',
+          }
+        ).catch(console.error)
       }
 
       toast.success(method === 'neft_with_token' ? 'Token Paid & NEFT Details Submitted! Redirecting to orders...' : 'Investment Successful! Redirecting to orders...')

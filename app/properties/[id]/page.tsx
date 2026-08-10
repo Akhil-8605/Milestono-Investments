@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
 import { logPropertyView, logPropertyWatchlist } from '@/lib/interactions'
+import { createNotification } from '@/lib/notifications'
 import Link from 'next/link'
 import { format } from 'date-fns'
 
@@ -80,21 +81,70 @@ export default function PropertyDetailsPage() {
 
     setIsSubmittingInquiry(true)
     try {
+      const devCandidateIds = Array.from(
+        new Set([
+          property?.developerId,
+          property?.developerInfo?.developerId,
+          (property as any)?.developerInfo?.id,
+          (property as any)?.userId,
+        ].filter(Boolean))
+      ) as string[]
+
+      // 1. Save Inquiry document in Firestore
       await addDoc(collection(db, 'inquiries'), {
-        propertyId: globalId,
+        propertyId: globalId || property?.id || '',
         propertyTicker: property?.symbol || '',
+        propertyTickerId: property?.symbol || '',
         userId: user.id,
+        investorId: user.id,
         investorName: user.name,
         investorEmail: user.email,
-        developerId: property?.developerId || property?.developerInfo?.id || null,
+        investorPhone: user.mobile || user.phone || '',
+        developerId: property?.developerId || property?.developerInfo?.developerId || (property as any)?.userId || '',
         message: inquiryText,
         status: 'new',
         createdAt: serverTimestamp()
       })
-      toast.success('Inquiry sent successfully! The developer will contact you shortly.')
+
+      // 2. Realtime notification for Developer(s)
+      for (const targetDevId of devCandidateIds) {
+        await createNotification(
+          targetDevId,
+          'developer',
+          'investor_inquiry',
+          `New Inquiry for ${property?.name || property?.symbol || 'Property'}`,
+          `Investor ${user.name} sent an inquiry: "${inquiryText.substring(0, 80)}${inquiryText.length > 80 ? '...' : ''}"`,
+          {
+            propertyId: property?.id || globalId,
+            propertySymbol: property?.symbol || '',
+            propertyName: property?.name || '',
+            propertyImage: property?.images?.[0] || '',
+            investorId: user.id,
+            investorName: user.name,
+            investorEmail: user.email,
+            investorPhone: user.mobile || user.phone || '',
+            inquiryMessage: inquiryText,
+          }
+        )
+      }
+
+      // 2. Realtime notification for Investor
+      await createNotification(
+        user.id,
+        'investor',
+        'inquiry_sent',
+        `Inquiry Sent for ${property?.symbol || 'Property'}`,
+        `Your inquiry for ${property?.name || property?.symbol || 'the property'} has been sent to the developer.`,
+        {
+          propertySymbol: property?.symbol || '',
+          propertyName: property?.name || '',
+        }
+      )
+
+      toast.success('Inquiry sent successfully!')
       setInquiryText('')
     } catch (err) {
-      console.error('Failed to send inquiry:', err)
+      console.error(err)
       toast.error('Failed to send inquiry')
     } finally {
       setIsSubmittingInquiry(false)
@@ -116,19 +166,30 @@ export default function PropertyDetailsPage() {
 
       if (property) {
         await logPropertyWatchlist(property.id, property.symbol, property.developerId, user, 'add')
-        if (property.developerId) {
-          await addDoc(collection(db, 'notifications'), {
-            userId: property.developerId,
-            role: 'developer',
-            type: 'watchlist_alert',
-            title: 'Property Shortlisted',
-            message: `${user.name || 'An investor'} added ${property.name} (${property.symbol}) to their watchlist.`,
-            propertyId: property.id,
-            propertySymbol: property.symbol,
-            investorId: user.id,
-            read: false,
-            createdAt: serverTimestamp()
-          }).catch(console.error)
+        
+        const devCandidateIds = Array.from(new Set([
+          property.developerId,
+          property.developerInfo?.developerId,
+          (property as any)?.userId
+        ].filter(Boolean))) as string[]
+
+        for (const targetDevId of devCandidateIds) {
+          await createNotification(
+            targetDevId,
+            'developer',
+            'property_shortlisted',
+            'Property Shortlisted by Investor',
+            `${user.name || 'An investor'} added ${property.name} (${property.symbol}) to their watchlist.`,
+            {
+              propertyId: property.id,
+              propertySymbol: property.symbol,
+              propertyName: property.name,
+              investorId: user.id,
+              investorName: user.name || 'Verified Investor',
+              investorEmail: user.email || '',
+              investorPhone: (user as any).mobile || (user as any).phone || '',
+            }
+          ).catch(console.error)
         }
       }
       toast.success('Added to watchlist!')
@@ -178,14 +239,14 @@ export default function PropertyDetailsPage() {
     if (!property?.marketData?.priceHistory) return []
     const hist = property.marketData.priceHistory
     if (timeframe === 'ALL' || hist.length === 0) return hist
-    
+
     const now = new Date()
     const msPerDay = 24 * 60 * 60 * 1000
     let cutoffMs = 0
     if (timeframe === '1W') cutoffMs = 7 * msPerDay
     if (timeframe === '1M') cutoffMs = 30 * msPerDay
     if (timeframe === '1Y') cutoffMs = 365 * msPerDay
-    
+
     const cutoffDate = new Date(now.getTime() - cutoffMs)
     return hist.filter((point: any) => new Date(point.date) >= cutoffDate)
   }
@@ -325,8 +386,8 @@ export default function PropertyDetailsPage() {
                 </h3>
                 <div className="flex bg-muted/50 rounded-xl p-1.5 border border-border/50 backdrop-blur-md">
                   {(['1W', '1M', '1Y', 'ALL'] as const).map((tf) => (
-                    <button 
-                      key={tf} 
+                    <button
+                      key={tf}
                       onClick={() => setTimeframe(tf)}
                       className={cn("px-5 py-2 rounded-lg text-xs font-bold transition-all", tf === timeframe ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
                     >
@@ -345,13 +406,13 @@ export default function PropertyDetailsPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.6} />
-                    <XAxis 
-                      dataKey="date" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 600 }} 
-                      dy={15} 
-                      minTickGap={30} 
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 600 }}
+                      dy={15}
+                      minTickGap={30}
                       tickFormatter={(value) => {
                         try {
                           const date = new Date(value);
@@ -647,7 +708,7 @@ export default function PropertyDetailsPage() {
                   </div>
 
                   <div className="pt-2 space-y-4">
-                    <Button 
+                    <Button
                       onClick={() => {
                         if (!user) {
                           toast.error('Please log in to purchase.')
@@ -749,6 +810,21 @@ export default function PropertyDetailsPage() {
                   </div>
                 )}
 
+                <Button 
+                  variant="outline" 
+                  className="w-full h-12 bg-background/50 hover:bg-muted text-foreground font-bold rounded-xl shadow-sm transition-all gap-2" 
+                  onClick={() => {
+                    const targetDevId = dev?.developerId || dev?.globalId || dev?.id || property?.developerId || property?.developerInfo?.developerId || (property as any)?.userId
+                    if (targetDevId) {
+                      router.push(`/developers/${targetDevId}`)
+                    } else {
+                      toast.error('Developer profile unavailable')
+                    }
+                  }}
+                >
+                  <Building2 className="w-4 h-4 text-primary" /> View Developer Profile
+                </Button>
+
                 {/* Inline Contact Section */}
                 <div className="mt-8 pt-8 border-t border-border/50">
                   <h4 className="font-black text-xl text-foreground mb-4">Direct Inquiry</h4>
@@ -761,7 +837,7 @@ export default function PropertyDetailsPage() {
                         <h5 className="font-bold text-foreground">Authentication Required</h5>
                         <p className="text-xs text-muted-foreground mt-1">Please sign in to message the developer.</p>
                       </div>
-                      <Link href="/login">
+                      <Link href="/auth/login">
                         <Button className="w-full mt-2 h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md transition-all">
                           Sign In to Continue
                         </Button>
@@ -846,3 +922,4 @@ export default function PropertyDetailsPage() {
     </AppLayout>
   )
 }
+

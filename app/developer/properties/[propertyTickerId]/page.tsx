@@ -15,9 +15,9 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { collection, onSnapshot, query, where, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { BarChart3, Download, Eye, FileText, MessageSquare, Users } from 'lucide-react'
+import { BarChart3, Download, Eye, FileText, MessageSquare, Users, Loader2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ComposedChart, Bar, Line, Legend, Tooltip } from 'recharts'
 
 const formatCurrency = (value: number | null | undefined) => {
@@ -64,10 +64,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
+import { useSession } from '@/components/shell/session-context'
+
 export default function DeveloperAnalyticsPage() {
   const router = useRouter()
   const params = useParams()
   const propertyTickerId = params.propertyTickerId as string
+  const { user } = useSession()
 
   const [property, setProperty] = useState<Property | null>(null)
   const [views, setViews] = useState<any[]>([])
@@ -77,6 +80,7 @@ export default function DeveloperAnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [timeframe, setTimeframe] = useState<'1W' | '1M' | '1Y' | 'ALL'>('1M')
   const [selectedInvestor, setSelectedInvestor] = useState<any | null>(null)
+  const [selectedInquiry, setSelectedInquiry] = useState<any | null>(null)
   const [messageText, setMessageText] = useState<string>('')
   const [dialogOpen, setDialogOpen] = useState<boolean>(false)
   const [sendingMsg, setSendingMsg] = useState<boolean>(false)
@@ -86,35 +90,72 @@ export default function DeveloperAnalyticsPage() {
 
     setIsLoading(true)
 
-    const qProp = query(collection(db, 'properties'), where('symbol', '==', propertyTickerId))
-    const unsubProp = onSnapshot(qProp, (snapshot) => {
-      if (!snapshot.empty) {
-        setProperty({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Property)
-      } else {
-        toast.error('Property not found')
+    let unsubViews: (() => void) | null = null
+    let unsubInquiries: (() => void) | null = null
+    let unsubWatch: (() => void) | null = null
+
+    const initPropertyView = async () => {
+      // 1. Fetch property details
+      try {
+        let propData: Property | null = null
+        const byDocSnap = await getDoc(doc(db, 'properties', propertyTickerId))
+        if (byDocSnap.exists()) {
+          propData = { id: byDocSnap.id, ...byDocSnap.data() } as Property
+        } else {
+          const qSym = query(collection(db, 'properties'), where('symbol', '==', propertyTickerId))
+          const snapSym = await getDocs(qSym)
+          if (!snapSym.empty) {
+            propData = { id: snapSym.docs[0].id, ...snapSym.docs[0].data() } as Property
+          } else {
+            const qGlob = query(collection(db, 'properties'), where('globalId', '==', propertyTickerId))
+            const snapGlob = await getDocs(qGlob)
+            if (!snapGlob.empty) {
+              propData = { id: snapGlob.docs[0].id, ...snapGlob.docs[0].data() } as Property
+            }
+          }
+        }
+
+        if (propData) {
+          setProperty(propData)
+          const candPropIds = Array.from(new Set([propData.id, propData.symbol, propData.globalId, propertyTickerId].filter(Boolean))) as string[]
+
+          // 2. Realtime views
+          const qViews = query(collection(db, 'property_views'), where('propertyTickerId', 'in', candPropIds.slice(0, 10)))
+          unsubViews = onSnapshot(qViews, (snap) => setViews(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+
+          // 3. Realtime inquiries
+          const qInq = query(collection(db, 'inquiries'), where('propertyTicker', 'in', candPropIds.slice(0, 10)))
+          unsubInquiries = onSnapshot(qInq, (snap) => setInquiries(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Inquiry))))
+
+          // 4. Realtime watchlists
+          const qWatch = query(collection(db, 'property_watchlists'), where('propertyTickerId', 'in', candPropIds.slice(0, 10)), where('removed', '==', false))
+          unsubWatch = onSnapshot(qWatch, (snap) => setWatchlisters(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+        } else {
+          toast.error('Property not found')
+        }
+      } catch (err) {
+        console.error('Error fetching property details:', err)
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
-    })
 
-    const qViews = query(collection(db, 'property_views'), where('propertyTickerId', '==', propertyTickerId))
-    const unsubViews = onSnapshot(qViews, (snapshot) => setViews(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))))
+      // 5. Fetch investors strictly for this property
+      fetch(`/api/properties/${propertyTickerId}/investors`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.success && Array.isArray(data.data)) {
+            setInvestors(data.data)
+          }
+        })
+        .catch((err) => console.error('Error fetching investors:', err))
+    }
 
-    const qInquiries = query(collection(db, 'inquiries'), where('propertyTicker', '==', propertyTickerId))
-    const unsubInquiries = onSnapshot(qInquiries, (snapshot) => setInquiries(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Inquiry))))
-
-    const qWatch = query(collection(db, 'property_watchlists'), where('propertyTickerId', '==', propertyTickerId), where('removed', '==', false))
-    const unsubWatch = onSnapshot(qWatch, (snapshot) => setWatchlisters(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))))
-
-    fetch(`/api/properties/${propertyTickerId}/investors`)
-      .then((res) => res.json())
-      .then((data) => { if (data?.success) setInvestors(data.data) })
-      .catch(() => {})
+    initPropertyView()
 
     return () => {
-      unsubProp()
-      unsubViews()
-      unsubInquiries()
-      unsubWatch()
+      if (unsubViews) unsubViews()
+      if (unsubInquiries) unsubInquiries()
+      if (unsubWatch) unsubWatch()
     }
   }, [propertyTickerId])
 
@@ -193,28 +234,56 @@ export default function DeveloperAnalyticsPage() {
     try {
       setSendingMsg(true)
       const userId = selectedInvestor.userId || selectedInvestor.id
-      const developerId = property?.developerInfo?.developerId || property?.developerId
-      const metadata: Record<string, any> = {
-        propertyId: property?.id || null,
-        propertyTicker: property?.symbol || null,
-        developerId: developerId || null,
+      
+      const activeUserId = user?.id || (property as any)?.userId
+      let profileDevId = property?.developerInfo?.developerId || property?.developerId || (user as any)?.developerId || null
+      let profileDevCompany = property?.developerInfo?.companyName || user?.name || null
+      let profileDevPhone = property?.developerInfo?.mobile || property?.developerInfo?.phone || user?.phone || null
+      let profileDevLogo = property?.developerInfo?.logo || property?.developerInfo?.companyLogo || null
+      let profileDevBanner = property?.developerInfo?.banner || property?.developerInfo?.companyBanner || null
+
+      if (activeUserId && (!profileDevId || !profileDevCompany || !profileDevLogo || !profileDevBanner)) {
+        try {
+          const pRes = await fetch(`/api/profile?userId=${activeUserId}`)
+          const pJson = await pRes.json()
+          if (pJson.success && pJson.data) {
+            profileDevId = profileDevId || pJson.data.developerId
+            profileDevCompany = profileDevCompany || pJson.data.companyName || pJson.data.name
+            profileDevPhone = profileDevPhone || pJson.data.phone || pJson.data.mobile
+            profileDevLogo = profileDevLogo || pJson.data.logo || pJson.data.companyLogo
+            profileDevBanner = profileDevBanner || pJson.data.banner || pJson.data.companyBanner
+          }
+        } catch (e) { /* ignore */ }
       }
 
-      const developerCompany = property?.developerInfo?.companyName || property?.companyName
-      if (developerCompany) metadata.developerCompany = developerCompany
+      const devIdToUse = profileDevId || property?.developerId || activeUserId
 
-      const developerLogo = property?.developerInfo?.logo || property?.developerInfo?.companyLogo
-      if (developerLogo) metadata.developerLogo = developerLogo
+      const metadata: Record<string, any> = {
+        propertyId: property?.id || null,
+        propertySymbol: property?.symbol || null,
+        propertyName: property?.name || null,
+        propertyImage: property?.images?.[0] || null,
+        developerId: devIdToUse,
+        globalId: devIdToUse,
+        devId: devIdToUse,
+        developerCompany: profileDevCompany || 'Developer Partner',
+        senderName: profileDevCompany || user?.name || 'Developer Partner',
+        developerLogo: profileDevLogo,
+        developerBanner: profileDevBanner || property?.images?.[0] || null,
+        developerPhone: profileDevPhone,
+        inquiryMessage: selectedInvestor?.message || '',
+        senderRole: 'Developer',
+      }
 
       await createNotification(
         userId,
         'investor',
         'developer_message',
-        `Message from ${property?.symbol || 'Developer'}`,
+        `Response from ${profileDevCompany || property?.symbol || 'Developer'} regarding ${property?.symbol || property?.name || 'Property'}`,
         messageText || 'Message from developer',
         metadata
       )
-      toast.success('Message sent to investor')
+      toast.success('Realtime notification sent to investor')
       setDialogOpen(false)
       setSelectedInvestor(null)
       setMessageText('')
@@ -530,7 +599,7 @@ export default function DeveloperAnalyticsPage() {
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl font-black text-foreground">Recent Inquiries</h2>
-                <p className="mt-2 text-sm text-muted-foreground">See the latest investor messages.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Click an inquiry to view full investor details and send a realtime notification.</p>
               </div>
               <Button variant="outline" size="sm" className="rounded-3xl" onClick={() => handleExport('inquiries', 'csv')}>
                 Export CSV
@@ -543,16 +612,44 @@ export default function DeveloperAnalyticsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {inquiries.slice(0, 5).map((inq) => (
-                  <Card key={inq.id} className="rounded-3xl border border-border/60 bg-background p-5 shadow-sm">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-base font-semibold text-foreground">{inq.investorName || 'Anonymous Investor'}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(parseTimestamp(inq.createdAt), { addSuffix: true })}</p>
+                {inquiries.slice(0, 10).map((inq) => (
+                  <Card 
+                    key={inq.id} 
+                    onClick={() => {
+                      setSelectedInquiry(inq)
+                      setSelectedInvestor({
+                        id: inq.investorId || (inq as any).userId,
+                        userId: inq.investorId || (inq as any).userId,
+                        name: inq.investorName,
+                        email: (inq as any).investorEmail,
+                        phone: (inq as any).investorPhone || (inq as any).phone || '',
+                        message: inq.message,
+                        createdAt: inq.createdAt
+                      })
+                      setDialogOpen(true)
+                    }}
+                    className="rounded-3xl border border-border/60 bg-background hover:bg-muted/30 p-5 shadow-sm transition-all cursor-pointer group hover:border-primary/50"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold group-hover:scale-105 transition-transform">
+                          {(inq.investorName || 'I')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-base font-bold text-foreground group-hover:text-primary transition-colors">{inq.investorName || 'Verified Investor'}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{(inq as any).investorEmail || 'No email provided'}</p>
+                        </div>
                       </div>
-                      <div className="rounded-full bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Inquiry</div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground font-medium">{formatDistanceToNow(parseTimestamp(inq.createdAt), { addSuffix: true })}</span>
+                        <Button size="sm" variant="outline" className="rounded-full text-xs font-bold gap-1 text-primary border-primary/30 hover:bg-primary/10">
+                          View & Reply
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-sm leading-7 text-muted-foreground">{inq.message || 'No message provided.'}</p>
+                    <div className="mt-3 bg-muted/40 p-3 rounded-2xl border border-border/40 text-sm text-muted-foreground line-clamp-2 italic">
+                      "{inq.message || 'No message provided.'}"
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -590,7 +687,7 @@ export default function DeveloperAnalyticsPage() {
           </Card>
         </section>
 
-        <section className="mt-10">
+        {/* <section className="mt-10">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-3xl font-black text-foreground">Active Investors</h2>
@@ -682,20 +779,84 @@ export default function DeveloperAnalyticsPage() {
               ))}
             </div>
           )}
-        </section>
+        </section> */}
 
-        {/* Message Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Message investor</DialogTitle>
+        {/* Investor Inquiry Overlay Modal */}
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) {
+            setSelectedInvestor(null)
+            setMessageText('')
+          }
+        }}>
+          <DialogContent className="max-w-2xl rounded-3xl p-7 border border-border/80 shadow-2xl bg-card/95 backdrop-blur-xl">
+            <DialogHeader className="border-b border-border/60 pb-4">
+              <DialogTitle className="text-xl font-bold flex items-center justify-between gap-3 text-foreground">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-lg shadow-sm">
+                    {(selectedInvestor?.name || 'I')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <span className="text-lg font-extrabold text-foreground block">{selectedInvestor?.name || 'Verified Investor'}</span>
+                    <span className="text-xs text-muted-foreground font-medium">{selectedInvestor?.email || 'Registered Investor'}</span>
+                  </div>
+                </div>
+                {property?.symbol && (
+                  <span className="text-xs font-bold font-mono bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20">
+                    {property.symbol}
+                  </span>
+                )}
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Sending to: <strong className="text-foreground">{selectedInvestor?.name || selectedInvestor?.email || selectedInvestor?.userId}</strong></p>
-              <textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} className="w-full rounded-md border px-3 py-2" rows={6} />
-              <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => { setDialogOpen(false); setSelectedInvestor(null); setMessageText('') }}>Cancel</Button>
-                <Button onClick={handleSendMessageToInvestor} disabled={sendingMsg}>{sendingMsg ? 'Sending...' : 'Send message'}</Button>
+
+            <div className="space-y-5 my-2">
+              {/* Investor Contact Details */}
+              <div className="grid grid-cols-2 gap-3 bg-muted/30 p-3.5 rounded-2xl border border-border/50 text-xs">
+                <div>
+                  <span className="text-muted-foreground font-semibold block text-[10px] uppercase tracking-wider">Email Address</span>
+                  <span className="font-mono font-bold text-foreground line-clamp-1">{selectedInvestor?.email || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground font-semibold block text-[10px] uppercase tracking-wider">Phone Number</span>
+                  <span className="font-mono font-bold text-foreground">{selectedInvestor?.phone || 'N/A'}</span>
+                </div>
+              </div>
+
+              {/* Inquiry Message Block */}
+              {selectedInvestor?.message && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Original Inquiry Message</span>
+                  <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 text-sm leading-relaxed text-foreground italic border-l-4 border-l-primary">
+                    "{selectedInvestor.message}"
+                  </div>
+                </div>
+              )}
+
+              {/* Realtime Notification Reply Input */}
+              <div className="space-y-2 pt-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-primary" /> Send Realtime Notification to Investor
+                </label>
+                <textarea 
+                  value={messageText} 
+                  onChange={(e) => setMessageText(e.target.value)} 
+                  placeholder="Type your response or update message here... The investor will receive an instant realtime notification."
+                  className="w-full rounded-2xl border border-border/80 bg-background p-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 min-h-[120px] transition-all" 
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/60">
+                <Button variant="outline" className="rounded-xl font-bold h-11 px-5" onClick={() => { setDialogOpen(false); setSelectedInvestor(null); setMessageText('') }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSendMessageToInvestor} 
+                  disabled={sendingMsg || !messageText.trim()}
+                  className="rounded-xl font-bold h-11 px-6 gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30"
+                >
+                  {sendingMsg ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {sendingMsg ? 'Sending Notification...' : 'Send Realtime Notification'}
+                </Button>
               </div>
             </div>
           </DialogContent>

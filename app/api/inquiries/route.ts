@@ -33,11 +33,18 @@ export async function POST(req: NextRequest) {
     batch.set(devNotifRef, {
       id: devNotifRef.id,
       userId: developerId,
-      type: 'inquiry_received',
-      title: 'New Property Inquiry',
-      message: `Investor ${investorName} submitted an inquiry for property ${propertyTickerId} says: "${message.substring(0, 50)}..."`,
+      role: 'developer',
+      type: 'investor_inquiry',
+      title: `New Property Inquiry - ${propertyTickerId}`,
+      message: `Investor ${investorName || 'An investor'} submitted an inquiry: "${message.substring(0, 80)}"`,
       read: false,
       data: { propertyTickerId, inquiryId: inquiryRef.id },
+      metadata: {
+        propertySymbol: propertyTickerId,
+        propertyTickerId,
+        investorName: investorName || 'Verified Investor',
+        inquiryMessage: message,
+      },
       createdAt: new Date().toISOString()
     })
 

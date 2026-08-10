@@ -95,8 +95,8 @@ export default function HomePage() {
         } else {
           setCurrentUser(user)
         }
-      } catch {
-        localStorage.clear()
+      } catch (e) {
+        console.warn('Failed to parse user on landing page:', e)
       }
     }
     const activePropertiesQuery = query(collection(db, 'properties'), where('status', '==', 'active'))

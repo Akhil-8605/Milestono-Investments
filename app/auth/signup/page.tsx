@@ -112,6 +112,9 @@ export default function SignupPage() {
     localStorage.setItem('milestono_token', token)
     localStorage.setItem('milestono_user', JSON.stringify(userData))
     localStorage.setItem('milestono_expires_at', expiresAt.toString())
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('milestono_auth_change'))
+    }
 
     // Welcome email moved to onboarding completion
 

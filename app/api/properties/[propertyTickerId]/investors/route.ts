@@ -7,62 +7,87 @@ export async function GET(req: NextRequest, context: { params: Promise<{ propert
 
     const { propertyTickerId } = await context.params
 
-    // First fetch the property to get its true document ID, since propertyTickerId might be symbol or globalId
-    const propSnap = await db.collection('properties').where('symbol', '==', propertyTickerId).limit(1).get()
-    const propGlobalSnap = await db.collection('properties').doc(propertyTickerId).get()
-    
-    let propertyId = propertyTickerId
-    if (!propSnap.empty) {
-      propertyId = propSnap.docs[0].id
-    } else if (!propGlobalSnap.exists) {
+    // 1. Locate the exact property document
+    let propDoc: FirebaseFirestore.DocumentSnapshot | null = null
+
+    // Try doc ID first
+    const byDocId = await db.collection('properties').doc(propertyTickerId).get()
+    if (byDocId.exists) {
+      propDoc = byDocId
+    } else {
+      // Try globalId
+      const byGlobalId = await db.collection('properties').where('globalId', '==', propertyTickerId).limit(1).get()
+      if (!byGlobalId.empty) {
+        propDoc = byGlobalId.docs[0]
+      } else {
+        // Try symbol
+        const bySymbol = await db.collection('properties').where('symbol', '==', propertyTickerId).limit(1).get()
+        if (!bySymbol.empty) {
+          propDoc = bySymbol.docs[0]
+        }
+      }
+    }
+
+    if (!propDoc || !propDoc.exists) {
       return NextResponse.json({ success: false, error: 'Property not found' }, { status: 404 })
     }
 
+    const propData = propDoc.data() || {}
+    const candidatePropertyIds = Array.from(
+      new Set([
+        propDoc.id,
+        propData.globalId,
+        propData.symbol,
+        propertyTickerId,
+      ].filter(Boolean))
+    ) as string[]
+
+    // 2. Fetch investments strictly for candidate IDs of THIS property
     const investmentsSnap = await db.collection('investments')
-      .where('propertyId', '==', propertyId)
+      .where('propertyId', 'in', candidatePropertyIds.slice(0, 10))
       .where('status', '==', 'active')
       .get()
 
-    // Aggregate units per user
-    const userUnitsMap = new Map<string, { units: number, invested: number }>()
+    // Aggregate units & total invested per user
+    const userUnitsMap = new Map<string, { units: number; invested: number }>()
     investmentsSnap.docs.forEach(doc => {
       const data = doc.data()
+      if (!data.userId) return
       const existing = userUnitsMap.get(data.userId) || { units: 0, invested: 0 }
       userUnitsMap.set(data.userId, { 
-        units: existing.units + data.unitsOwned,
-        invested: existing.invested + data.amountInvested
+        units: existing.units + (Number(data.unitsOwned) || 0),
+        invested: existing.invested + (Number(data.amountInvested) || 0)
       })
     })
 
-    // Fetch user details for each investor
+    // 3. Fetch comprehensive user details for each active investor
     const investors = []
     for (const [userId, stats] of Array.from(userUnitsMap.entries())) {
-      let name = 'Unknown Investor'
+      let name = 'Verified Investor'
       let email = ''
       let phone = ''
       let profilePhoto = ''
       
       try {
-        // First try investors collection for complete profile
-        const investorDoc = await db.collection('investors').doc(userId).get()
-        if (investorDoc.exists) {
-          const invData = investorDoc.data()
-          name = invData?.fullName || invData?.name || name
-          email = invData?.email || ''
-          phone = invData?.phone || ''
-          profilePhoto = invData?.profilePhoto || ''
-        } else {
-          // Fallback to users collection
-          const userDoc = await db.collection('users').doc(userId).get()
-          if (userDoc.exists) {
-            const userData = userDoc.data()
-            name = userData?.name || name
-            email = userData?.email || ''
-            phone = userData?.phone || ''
-            profilePhoto = userData?.profilePhoto || ''
-          }
+        const [investorDoc, userDoc, devDoc] = await Promise.all([
+          db.collection('investors').doc(userId).get(),
+          db.collection('users').doc(userId).get(),
+          db.collection('developers').doc(userId).get()
+        ])
+
+        const combinedData = {
+          ...(userDoc.exists ? userDoc.data() : {}),
+          ...(investorDoc.exists ? investorDoc.data() : {}),
+          ...(devDoc.exists ? devDoc.data() : {})
         }
-      } catch (e) { /* ignore */ }
+
+        name = combinedData.fullName || combinedData.name || combinedData.displayName || `${combinedData.firstName || ''} ${combinedData.lastName || ''}`.trim() || name
+        email = combinedData.email || ''
+        phone = combinedData.phone || combinedData.mobile || ''
+        profilePhoto = combinedData.profilePhoto || combinedData.photoURL || combinedData.avatar || ''
+      } catch (e) {
+        console.error('[Investor Profile Fetch Error]', e)
+      }
 
       investors.push({
         id: userId,
@@ -76,7 +101,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ propert
       })
     }
 
-    // Sort by units owned (descending)
+    // Sort by units owned descending
     investors.sort((a, b) => b.unitsOwned - a.unitsOwned)
 
     return NextResponse.json({ success: true, data: investors })

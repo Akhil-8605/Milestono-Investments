@@ -19,14 +19,45 @@ export async function GET(req: NextRequest) {
     // since Firestore doesn't support all complex multi-field filtering out of the box easily.
     
     let query: FirebaseFirestore.Query = db.collection('properties')
+    let properties: Property[] = []
+
     if (developerId) {
-      query = query.where('developerId', '==', developerId)
-    } else if (status) {
-      query = query.where('status', '==', status)
+      const devIds = developerId.split(',').map(s => s.trim()).filter(Boolean)
+      if (devIds.length > 0) {
+        // Query by developerId field
+        const snap1 = await db.collection('properties').where('developerId', 'in', devIds.slice(0, 10)).get()
+        const docs1 = snap1.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property))
+
+        // Query by developerInfo fields & globalId prefix fallback
+        const snap2 = await db.collection('properties').get()
+        const docs2 = snap2.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Property))
+          .filter(p => {
+            const pDevId = p.developerId
+            const pDevInfoId = (p as any)?.developerInfo?.developerId
+            const pDevEmail = (p as any)?.developerInfo?.email
+            const pUserId = (p as any)?.userId
+            const pGlobalId = p.globalId
+            return devIds.some(id => 
+              id === pDevId || 
+              id === pDevInfoId || 
+              id === pDevEmail || 
+              id === pUserId || 
+              (pGlobalId && pGlobalId.startsWith(id))
+            )
+          })
+
+        const map = new Map<string, Property>()
+        docs1.concat(docs2).forEach(p => map.set(p.id || p.symbol, p))
+        properties = Array.from(map.values())
+      }
+    } else {
+      if (status) {
+        query = query.where('status', '==', status)
+      }
+      const snapshot = await query.get()
+      properties = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property))
     }
-    
-    const snapshot = await query.get()
-    let properties: Property[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property))
 
     // Filter
     if (city) properties = properties.filter(p => p.city?.toLowerCase() === city.toLowerCase())

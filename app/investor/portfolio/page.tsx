@@ -78,7 +78,7 @@ export default function PortfolioPage() {
 
       const invested = inv.amountInvested
       const currentPropValue = inv.unitsOwned * prop.marketData.currentPrice
-      
+
       return {
         id: inv.id,
         propertyId: prop.id,
@@ -114,27 +114,27 @@ export default function PortfolioPage() {
     })
 
   const totalInvested = holdings.reduce((s, h) => s + h.invested, 0)
-  const totalCurrent  = holdings.reduce((s, h) => s + h.currentValue, 0)
-  const totalPL       = totalCurrent - totalInvested
-  const totalPLPct    = totalInvested ? (totalPL / totalInvested) * 100 : 0
-  const gainers       = holdings.filter(h => h.pl >= 0).length
-  const losers        = holdings.filter(h => h.pl < 0).length
+  const totalCurrent = holdings.reduce((s, h) => s + h.currentValue, 0)
+  const totalPL = totalCurrent - totalInvested
+  const totalPLPct = totalInvested ? (totalPL / totalInvested) * 100 : 0
+  const gainers = holdings.filter(h => h.pl >= 0).length
+  const losers = holdings.filter(h => h.pl < 0).length
 
   const SortIcon = ({ col }: { col: string }) =>
     sortCol !== col ? <span className="text-muted-foreground text-[10px]">↕</span>
       : sortDir === 'desc' ? <ChevronDown size={11} className="text-primary" />
-      : <ChevronUp size={11} className="text-primary" />
+        : <ChevronUp size={11} className="text-primary" />
 
   const COLS = [
-    { key: 'symbol',       label: 'Symbol',       align: 'left'  },
-    { key: 'unitsOwned',   label: 'Units',        align: 'right' },
-    { key: 'buyPrice',     label: 'Avg Cost',     align: 'right' },
-    { key: 'currentPrice', label: 'LTP',          align: 'right' },
-    { key: 'invested',     label: 'Invested',     align: 'right' },
-    { key: 'currentValue', label: 'Curr. Value',  align: 'right' },
-    { key: 'pl',           label: 'P&L',          align: 'right' },
-    { key: 'plPct',        label: 'P&L %',        align: 'right' },
-    { key: 'yield',        label: 'Yield',        align: 'right' },
+    { key: 'symbol', label: 'Symbol', align: 'left' },
+    { key: 'unitsOwned', label: 'Units', align: 'right' },
+    { key: 'buyPrice', label: 'Avg Cost', align: 'right' },
+    { key: 'currentPrice', label: 'LTP', align: 'right' },
+    { key: 'invested', label: 'Invested', align: 'right' },
+    { key: 'currentValue', label: 'Curr. Value', align: 'right' },
+    { key: 'pl', label: 'P&L', align: 'right' },
+    { key: 'plPct', label: 'P&L %', align: 'right' },
+    { key: 'yield', label: 'Yield', align: 'right' },
   ]
 
   return (
@@ -258,11 +258,9 @@ export default function PortfolioPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right text-xs font-semibold text-gain">{h.yield?.toFixed(1)}%</td>
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={e => { e.stopPropagation(); router.push(`/properties/${h.propertyId}`) }}
-                          className="text-[10px] px-2.5 py-1 rounded bg-primary/20 hover:bg-blue-600 text-blue-500 hover:text-white border border-primary/20 hover:border-primary/60 transition-all"
+                        <button className="text-[10px] px-2.5 py-1 rounded bg-primary/20 hover:bg-blue-600 text-blue-500 hover:text-white border border-primary/20 hover:border-primary/60 transition-all"
                         >
-                          Trade
+                          View
                         </button>
                       </td>
                     </tr>

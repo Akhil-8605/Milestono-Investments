@@ -87,20 +87,52 @@ export default function PublicDeveloperProfilePage() {
         const uidsToMatch = Array.from(new Set([
           currentDevData?.id, 
           currentDevData?.developerId, 
+          currentDevData?.email,
           devIdParam
-        ].filter(Boolean)))
+        ].filter(Boolean))) as string[]
 
-        const propertiesByDevIdQuery = query(collection(db, 'properties'), where('developerId', 'in', uidsToMatch))
+        // 1. Immediate fetch via Server API (Firebase Admin)
+        try {
+          const res = await fetch(`/api/properties?developerId=${encodeURIComponent(uidsToMatch.join(','))}`)
+          const json = await res.json()
+          if (json.success && Array.isArray(json.data)) {
+            json.data.forEach((p: Property) => {
+              if (p.status === 'active' || !p.status) {
+                propertyMap.set(p.id || p.symbol, p)
+              }
+            })
+            updateProperties()
+          }
+        } catch (apiErr) {
+          console.warn('[PublicDeveloperProfile] API fallback error:', apiErr)
+        }
 
-        const handleSnapshot = (snap: any) => {
-          snap.docs.forEach((doc: any) => {
-            propertyMap.set(doc.id, { id: doc.id, ...doc.data() } as Property)
+        // 2. Realtime listener A (by developerId)
+        const qByDevId = query(collection(db, 'properties'), where('developerId', 'in', uidsToMatch.slice(0, 10)))
+        unsubscribeByDeveloperId = onSnapshot(qByDevId, (snap) => {
+          snap.docs.forEach((docSnap) => {
+            const data = docSnap.data()
+            if (data.status === 'active' || !data.status) {
+              propertyMap.set(docSnap.id, { id: docSnap.id, ...data } as Property)
+            }
           })
           updateProperties()
           setIsLoading(false)
-        }
+        }, (err) => console.warn('[PublicDeveloperProfile] Snapshot error:', err))
 
-        unsubscribeByDeveloperId = onSnapshot(propertiesByDevIdQuery, handleSnapshot)
+        // 3. Realtime listener B (by developerInfo.developerId)
+        const qByDevInfo = query(collection(db, 'properties'), where('developerInfo.developerId', '==', devIdParam))
+        unsubscribeByDeveloperInfo = onSnapshot(qByDevInfo, (snap) => {
+          snap.docs.forEach((docSnap) => {
+            const data = docSnap.data()
+            if (data.status === 'active' || !data.status) {
+              propertyMap.set(docSnap.id, { id: docSnap.id, ...data } as Property)
+            }
+          })
+          updateProperties()
+          setIsLoading(false)
+        }, (err) => console.warn('[PublicDeveloperProfile] Info snapshot error:', err))
+
       } catch (err) {
         console.error('Error loading developer details:', err)
         setIsLoading(false)
@@ -111,6 +143,7 @@ export default function PublicDeveloperProfilePage() {
 
     return () => {
       unsubscribeByDeveloperId?.()
+      unsubscribeByDeveloperInfo?.()
     }
   }, [devIdParam])
 

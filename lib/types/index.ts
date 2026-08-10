@@ -6,6 +6,7 @@ export interface BaseUser {
   email: string
   name: string
   phone?: string
+  mobile?: string
   role: UserRole
   createdAt: Date
   updatedAt: Date
@@ -111,9 +112,13 @@ export interface Property {
   developerInfo?: any
   legalVerification?: any
   media?: any
+  totalValue?: number
+  adminMessage?: string | null
   viewCount: number
   listedAt: Date
   lastUpdated: Date
+  createdAt?: any
+  updatedAt?: any
 }
 
 // ─── APPRECIATION & PRICING ────────────────────────────────────────────────
@@ -143,26 +148,13 @@ export interface Inquiry {
 }
 
 // ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
-export type NotificationType = 'watchlist_add' | 'inquiry_received' | 'inquiry_sent' | 'system' | 'property_rejected' | 'property_approved' | 'transaction_approved' | 'transaction_rejected' | 'payout_approved' | 'payout_rejected'
-
-export interface AppNotification {
-  id: string
-  userId: string             // Recipient
-  type: NotificationType
-  title: string
-  message: string
-  read: boolean
-  data?: any                 // For routing (e.g. { propertyTickerId: 'PRSN' })
-  createdAt: Date
-}
+export type { NotificationType, AppNotification } from '../notifications'
 
 
 // ─── INVESTMENT ─────────────────────────────────────────────────────────────
 export type InvestmentStatus = 'active' | 'sold' | 'stopped'
 
 export interface Investment {
-  [x: string]: string | undefined
-  [x: string]: string | undefined
   id: string
   userId: string
   propertyId: string
@@ -179,6 +171,7 @@ export interface Investment {
   targetPrice?: number
   purchasedAt: Date
   status: InvestmentStatus
+  [key: string]: any
 }
 
 // ─── TRANSACTION ─────────────────────────────────────────────────────────────
@@ -209,12 +202,11 @@ export interface PayoutRequest {
 }
 
 export interface Transaction {
-  [x: string]: Date
-  investorName: string
-  investorPhoto: any
   id: string
   userId: string
   propertyId: string
+  investorName?: string
+  investorPhoto?: any
   propertyName?: string
   propertySymbol?: string
   type: TransactionType
@@ -236,6 +228,7 @@ export interface Transaction {
   verifiedByAdmin?: boolean
   status: TransactionStatus
   timestamp: Date
+  [key: string]: any
 }
 
 // ─── PRICE ALERT ─────────────────────────────────────────────────────────────

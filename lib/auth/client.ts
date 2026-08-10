@@ -14,7 +14,7 @@ export async function mockLogin(email: string, password: string) {
 
   // Mock token generation
   const token = `mock_token_${Date.now()}`
-  const expiresAt = Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
 
   return {
     token,

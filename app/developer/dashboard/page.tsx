@@ -17,6 +17,8 @@ import { useSession } from '@/components/shell/session-context'
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
+import { subscribeDeveloperProperties } from '@/lib/developer-properties'
+
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 
@@ -86,11 +88,8 @@ export default function DeveloperDashboard() {
 
   useEffect(() => {
     if (!user) return
-    const unsub = onSnapshot(
-      query(collection(db, 'properties'), where('developerId', '==', user.id)),
-      async (snap) => {
-        const props = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        setProperties(props)
+    const unsub = subscribeDeveloperProperties(user, async (props) => {
+      setProperties(props)
 
         const propertyIds = props.map(p => p.id)
         let allInvestments: any[] = []

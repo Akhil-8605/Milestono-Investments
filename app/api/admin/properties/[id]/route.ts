@@ -32,6 +32,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       updatedAt: new Date().toISOString()
     })
 
+    const propData = doc.data() || {}
+    const devCandidateIds = Array.from(new Set([
+      propData.developerId,
+      propData.developerInfo?.developerId,
+      propData.userId,
+    ].filter(Boolean))) as string[]
+
+    const notifType = status === 'approved' ? 'property_approved' : 'property_rejected'
+    const notifTitle = status === 'approved' ? 'Property Listing Approved!' : 'Property Listing Rejected'
+    const notifMsg = message || (status === 'approved' 
+      ? `Your property listing ${propData.name || propData.symbol} has been approved and is now live on the market.`
+      : `Your property listing ${propData.name || propData.symbol} requires updates before approval.`)
+
+    for (const devId of devCandidateIds) {
+      await db.collection('notifications').add({
+        userId: devId,
+        role: 'developer',
+        type: notifType,
+        title: notifTitle,
+        message: notifMsg,
+        read: false,
+        createdAt: new Date().toISOString(),
+        metadata: {
+          propertyId: id,
+          propertySymbol: propData.symbol || null,
+          propertyName: propData.name || null,
+          propertyImage: propData.images && propData.images[0] ? propData.images[0] : null,
+          adminMessage: message || null,
+        }
+      }).catch(console.error)
+    }
+
     return NextResponse.json({ success: true, message: `Property ${status} successfully` })
   } catch (err) {
     console.error('[Admin Properties PATCH]', err)

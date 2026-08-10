@@ -63,7 +63,7 @@ export const legalVerificationSchema = z.object({
 
 export const developerInfoSchema = z.object({
   companyName: z.string().min(2, "Company Name is required"),
-  developerId: z.string().length(6, "Developer ID must be exactly 6 characters"),
+  developerId: z.string().min(3, "Developer ID is required"),
   contactPerson: z.string().min(2, "Contact Person is required"),
   mobile: z.string().min(10, "Mobile must be at least 10 digits"),
   email: z.string().email("Invalid email address"),

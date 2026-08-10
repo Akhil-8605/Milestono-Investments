@@ -255,9 +255,9 @@ export default function AdminSetAppreciationPage() {
                       itemStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '16px' }}
                       formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Price']}
                       labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}
-                      labelFormatter={(label) => {
+                      labelFormatter={(label: any) => {
                         try {
-                          const date = new Date(label);
+                          const date = new Date(label as string);
                           if (isNaN(date.getTime())) return String(label);
                           return format(date, 'MMM d, yyyy, h:mm a');
                         } catch { return String(label) }

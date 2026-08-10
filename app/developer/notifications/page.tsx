@@ -36,7 +36,8 @@ export default function DeveloperNotificationsPage() {
     }
   }
 
-  const markAsRead = async (id: string) => {
+  const markAsRead = async (id?: string) => {
+    if (!id) return
     try {
       await fetch(`/api/notifications/${id}/read`, { method: 'PATCH' })
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))

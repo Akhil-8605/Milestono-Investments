@@ -5,14 +5,23 @@ export type NotificationType =
   | 'property_rejected'
   | 'property_approved'
   | 'investor_inquiry'
+  | 'inquiry_received'
+  | 'inquiry_sent'
   | 'investor_watchlisted'
+  | 'property_shortlisted'
   | 'developer_reply'
   | 'developer_message'
+  | 'admin_message'
+  | 'system'
   | 'investment_received'
+  | 'investment_confirm'
   | 'order_placed'
   | 'payment_successful'
   | 'neft_submitted'
   | 'neft_on_hold'
+  | 'neft_pending'
+  | 'welcome'
+  | 'welcome_message'
   | 'watchlist_alert'
   | 'transaction_approved'
   | 'transaction_rejected'
@@ -29,6 +38,7 @@ export interface AppNotification {
   message: string
   read: boolean
   metadata?: any
+  data?: any
   createdAt: any
 }
 

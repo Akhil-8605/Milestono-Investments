@@ -15,6 +15,8 @@ import {
 import { Users, Activity, Eye, MessageSquare, Star, ArrowRight, TrendingUp } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
+import { subscribeDeveloperProperties } from '@/lib/developer-properties'
+
 const fmtC = (n: number) => {
   if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`
   if (n >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`
@@ -55,14 +57,10 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (!user) return
-
     let unsubs: any[] = []
 
-    const unsubProps = onSnapshot(
-      query(collection(db, 'properties'), where('developerId', '==', user.id)),
-      (snap) => {
-        const props = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any))
-        setProperties(props)
+    const unsubProps = subscribeDeveloperProperties(user, (props) => {
+      setProperties(props)
         
         if (props.length === 0) {
           setLoading(false)

@@ -10,6 +10,8 @@ import { collection, query, where, getDocs, onSnapshot, documentId } from 'fireb
 import { db } from '@/lib/firebase'
 import { Property, Investment, User } from '@/lib/types'
 
+import { subscribeDeveloperProperties } from '@/lib/developer-properties'
+
 type InvestorData = {
   user: User;
   investments: (Investment & { propertySymbol: string; propertyName: string })[];
@@ -30,8 +32,7 @@ export default function DevInvestorsPage() {
 
     const loadData = async () => {
       try {
-        unsubProps = onSnapshot(query(collection(db, 'properties'), where('developerId', '==', user.id)), (propsSnap) => {
-          const props = propsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property))
+        unsubProps = subscribeDeveloperProperties(user, (props) => {
           if (props.length === 0) {
             setInvestors([])
             setIsLoading(false)
