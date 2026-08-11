@@ -16,9 +16,13 @@ export default function DeveloperInfo({ developerId }: { developerId: string }) 
 
     const raw = typeof window !== 'undefined' ? localStorage.getItem('milestono_user') : null
     if (raw) {
-      const parsed = JSON.parse(raw)
-      setValue('developerInfo.companyName', parsed.name || user?.name || '', { shouldValidate: true })
-      setValue('developerInfo.email', parsed.email || user?.email || '', { shouldValidate: true })
+      try {
+        const parsed = JSON.parse(raw)
+        setValue('developerInfo.companyName', parsed.name || user?.name || '', { shouldValidate: true })
+        setValue('developerInfo.email', parsed.email || user?.email || '', { shouldValidate: true })
+      } catch (e) {
+        console.warn('[DeveloperInfo] Failed to parse milestono_user from localStorage:', e)
+      }
     }
 
     const loadProfileDevId = async () => {

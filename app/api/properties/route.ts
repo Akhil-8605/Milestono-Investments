@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     if (city) properties = properties.filter(p => p.city?.toLowerCase() === city.toLowerCase())
     if (type) properties = properties.filter(p => p.type === type)
     if (q) properties = properties.filter(p => {
-      const locStr = typeof p.location === 'object' ? (p.location?.areaLocality || p.location?.city || '') : (p.location || '');
+      const locStr = (p.location && typeof p.location === 'object') ? (p.location?.areaLocality || p.location?.city || '') : (p.location || '');
       return p.name?.toLowerCase().includes(q) ||
       p.symbol?.toLowerCase().includes(q) ||
       p.city?.toLowerCase().includes(q) ||

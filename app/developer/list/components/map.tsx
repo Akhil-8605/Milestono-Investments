@@ -11,6 +11,7 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
   const mapRef = useRef<HTMLDivElement>(null)
   const googleMapRef = useRef<any>(null)
   const markerRef = useRef<any>(null)
+  const isAdvancedRef = useRef(false)
   const [isLoaded, setIsLoaded] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
@@ -18,7 +19,9 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    let cancelled = false
     const checkGoogle = () => {
+      if (cancelled) return
       if ((window as any).google?.maps?.Map) {
         setIsLoaded(true)
       } else {
@@ -37,79 +40,133 @@ export default function MapComponent({ position, setPosition }: MapComponentProp
     } else {
       checkGoogle()
     }
+
+    return () => { cancelled = true }
   }, [apiKey])
 
   useEffect(() => {
     if (!isLoaded || !mapRef.current || !(window as any).google?.maps) return
 
     const google = (window as any).google
-    const latLng = { lat: position[0], lng: position[1] }
+
+    // Validate position values are finite numbers
+    const lat = Number.isFinite(position[0]) ? position[0] : 28.6139
+    const lng = Number.isFinite(position[1]) ? position[1] : 77.2090
+    const latLng = { lat, lng }
 
     if (!googleMapRef.current) {
-      const map = new google.maps.Map(mapRef.current, {
-        center: latLng,
-        zoom: 15,
-        mapId: 'DEMO_MAP_ID', // Required for AdvancedMarkerElement
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-      })
+      try {
+        const map = new google.maps.Map(mapRef.current, {
+          center: latLng,
+          zoom: 15,
+          mapId: 'DEMO_MAP_ID',
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+        })
 
-      let marker: any = null
-      if (google.maps.marker?.AdvancedMarkerElement) {
-        marker = new google.maps.marker.AdvancedMarkerElement({
-          position: latLng,
-          map: map,
-          gmpDraggable: true,
-          title: 'Property Location',
+        let marker: any = null
+        let isAdvanced = false
+
+        // Try AdvancedMarkerElement first
+        if (google.maps.marker?.AdvancedMarkerElement) {
+          try {
+            marker = new google.maps.marker.AdvancedMarkerElement({
+              position: latLng,
+              map: map,
+              gmpDraggable: true,
+              title: 'Property Location',
+            })
+            isAdvanced = true
+          } catch {
+            // AdvancedMarkerElement failed (e.g. no mapId support), fall back
+            marker = null
+          }
+        }
+
+        // Fallback to legacy Marker
+        if (!marker) {
+          marker = new google.maps.Marker({
+            position: latLng,
+            map: map,
+            draggable: true,
+            title: 'Property Location',
+          })
+          isAdvanced = false
+        }
+
+        isAdvancedRef.current = isAdvanced
+
+        // Helper to safely extract lat/lng from various position types
+        const extractLatLng = (pos: any): [number, number] | null => {
+          if (!pos) return null
+          try {
+            const lt = typeof pos.lat === 'function' ? pos.lat() : pos.lat
+            const ln = typeof pos.lng === 'function' ? pos.lng() : pos.lng
+            if (Number.isFinite(lt) && Number.isFinite(ln)) return [lt, ln]
+          } catch { /* ignore */ }
+          return null
+        }
+
+        // Helper to safely update marker position
+        const updateMarkerPosition = (newLatLng: { lat: number; lng: number }) => {
+          try {
+            if (isAdvanced) {
+              marker.position = newLatLng
+            } else {
+              marker.setPosition(newLatLng)
+            }
+          } catch (err) {
+            console.warn('[Map] Failed to update marker:', err)
+          }
+        }
+
+        map.addListener('click', (e: any) => {
+          try {
+            if (!e.latLng) return
+            const coords = extractLatLng(e.latLng)
+            if (!coords) return
+            updateMarkerPosition({ lat: coords[0], lng: coords[1] })
+            setPosition(coords)
+          } catch (err) {
+            console.warn('[Map] Click handler error:', err)
+          }
         })
-      } else {
-        // Fallback for older API versions
-        marker = new google.maps.Marker({
-          position: latLng,
-          map: map,
-          draggable: true,
-          title: 'Property Location',
+
+        marker.addListener('dragend', () => {
+          try {
+            let coords: [number, number] | null = null
+            if (isAdvanced) {
+              coords = extractLatLng(marker.position)
+            } else {
+              coords = extractLatLng(marker.getPosition())
+            }
+            if (coords) {
+              setPosition(coords)
+            }
+          } catch (err) {
+            console.warn('[Map] Dragend handler error:', err)
+          }
         })
+
+        googleMapRef.current = map
+        markerRef.current = marker
+      } catch (err) {
+        console.error('[Map] Initialization error:', err)
       }
-
-      map.addListener('click', (e: any) => {
-        if (!e.latLng) return
-        const newLat = typeof e.latLng.lat === 'function' ? e.latLng.lat() : e.latLng.lat
-        const newLng = typeof e.latLng.lng === 'function' ? e.latLng.lng() : e.latLng.lng
-        if (marker.position !== undefined) {
-          marker.position = { lat: newLat, lng: newLng } // AdvancedMarkerElement
-        } else {
-          marker.setPosition({ lat: newLat, lng: newLng }) // Fallback Marker
-        }
-        setPosition([newLat, newLng])
-      })
-
-      marker.addListener('dragend', (e: any) => {
-        let newLat, newLng
-        if (marker.position !== undefined) {
-          // AdvancedMarkerElement
-          newLat = typeof marker.position.lat === 'function' ? marker.position.lat() : marker.position.lat
-          newLng = typeof marker.position.lng === 'function' ? marker.position.lng() : marker.position.lng
-        } else if (e.latLng) {
-          newLat = typeof e.latLng.lat === 'function' ? e.latLng.lat() : e.latLng.lat
-          newLng = typeof e.latLng.lng === 'function' ? e.latLng.lng() : e.latLng.lng
-        }
-        if (newLat !== undefined && newLng !== undefined) {
-          setPosition([newLat, newLng])
-        }
-      })
-
-      googleMapRef.current = map
-      markerRef.current = marker
     } else {
-      googleMapRef.current.setCenter(latLng)
-      if (markerRef.current) {
-        if (markerRef.current.position !== undefined) {
-          markerRef.current.position = latLng // AdvancedMarkerElement
-        } else {
-          markerRef.current.setPosition(latLng) // Fallback Marker
+      // Update existing map and marker
+      try {
+        googleMapRef.current.setCenter(latLng)
+        if (markerRef.current) {
+          if (isAdvancedRef.current) {
+            markerRef.current.position = latLng
+          } else {
+            markerRef.current.setPosition(latLng)
+          }
         }
+      } catch (err) {
+        console.warn('[Map] Update error:', err)
       }
     }
   }, [isLoaded, position, setPosition])

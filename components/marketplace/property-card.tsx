@@ -29,7 +29,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
             <div className="flex-1">
               <CardTitle className="line-clamp-2">{property.name}</CardTitle>
               <CardDescription className="line-clamp-1 text-xs mt-1">
-                {typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {typeof property.location === 'object' ? property.location.state : property.city}
+                {property.location && typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {property.location && typeof property.location === 'object' ? property.location.state : property.city}
               </CardDescription>
             </div>
             <Badge

@@ -56,9 +56,9 @@ export default function InvestmentInfo() {
           <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 flex flex-col items-center justify-center">
             <span className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Calculated Unit Price</span>
             <span className="text-2xl font-bold text-primary">
-              ₹ {totalPrice > 0 && totalUnits > 0 ? Math.round(totalPrice / totalUnits).toLocaleString('en-IN') : '0'}
+              ₹ {totalPrice > 0 && totalUnits > 0 && Number.isFinite(totalPrice / totalUnits) ? Math.round(totalPrice / totalUnits).toLocaleString('en-IN') : '0'}
             </span>
-            <span className="text-[10px] text-muted-foreground mt-1">{totalPrice > 0 && totalUnits > 0 ? numberToIndianWords(Math.round(totalPrice / totalUnits)) : ''}</span>
+            <span className="text-[10px] text-muted-foreground mt-1">{totalPrice > 0 && totalUnits > 0 && Number.isFinite(totalPrice / totalUnits) ? numberToIndianWords(Math.round(totalPrice / totalUnits)) : ''}</span>
           </div>
         </div>
 
@@ -93,7 +93,7 @@ export default function InvestmentInfo() {
             placeholder="Optional e.g. 8.5" 
             className="h-11 bg-muted/50 text-foreground"
           />
-          <p className="text-[10px] text-primary">{(rentalYield ?? 0) > 0 ? `${numberToIndianWords(Math.floor(rentalYield || 0))} Point ${numberToIndianWords(Math.round(((rentalYield || 0) % 1) * 10))} Percent` : ''}</p>
+          <p className="text-[10px] text-primary">{(rentalYield ?? 0) > 0 && Number.isFinite(rentalYield) ? `${numberToIndianWords(Math.floor(rentalYield || 0))} Point ${numberToIndianWords(Math.round(((rentalYield || 0) % 1) * 10))} Percent` : ''}</p>
           {errors.investmentInfo?.rentalYield && <p className="text-[10px] text-red-500">{errors.investmentInfo.rentalYield.message}</p>}
         </div>
 

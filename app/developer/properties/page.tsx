@@ -54,7 +54,7 @@ export default function DeveloperPropertiesPage() {
       result = result.filter(p => {
         const name = (p.name || '').toLowerCase()
         const symbol = (p.symbol || '').toLowerCase()
-        const city = (typeof p.location === 'object' ? p.location?.city : p.city || '').toLowerCase()
+        const city = (p.location && typeof p.location === 'object' ? p.location?.city : p.city || '').toLowerCase()
         const desc = (p.description || '').toLowerCase()
         return name.includes(q) || symbol.includes(q) || city.includes(q) || desc.includes(q)
       })
@@ -275,7 +275,7 @@ export default function DeveloperPropertiesPage() {
                       <h3 className="text-white font-extrabold text-xl leading-tight line-clamp-1">{property.name}</h3>
                       <p className="text-white/90 text-xs font-medium flex items-center gap-1.5 mt-1">
                         <MapPin className="w-3.5 h-3.5 text-primary" /> 
-                        {typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {typeof property.location === 'object' ? property.location.state : property.city}
+                        {property.location && typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {property.location && typeof property.location === 'object' ? property.location.state : property.city}
                       </p>
                     </div>
                   </div>

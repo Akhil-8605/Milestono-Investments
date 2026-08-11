@@ -331,7 +331,7 @@ export default function PublicDeveloperProfilePage() {
                             <div className="text-white">
                               <p className="font-bold text-base leading-tight drop-shadow-md">{p.name}</p>
                               <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
-                                <MapPin className="w-3 h-3 text-emerald-400" /> {typeof p.location === 'object' ? p.location.city : (p.city || 'Mumbai')}
+                                <MapPin className="w-3 h-3 text-emerald-400" /> {p.location && typeof p.location === 'object' ? p.location.city : (p.city || 'Mumbai')}
                               </p>
                             </div>
                           </div>

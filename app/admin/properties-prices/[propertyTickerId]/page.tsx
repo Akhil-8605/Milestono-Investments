@@ -137,7 +137,7 @@ export default function AdminSetAppreciationPage() {
   }
   const chartData = filterChartData()
 
-  const loc = typeof property.location === 'object' ? property.location : null
+  const loc = (property.location && typeof property.location === 'object') ? property.location : null
   const rawForm = (property as any).rawFormData || {}
   const basicDetails = property.basicDetails || rawForm.basicDetails || null
 

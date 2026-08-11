@@ -24,13 +24,13 @@ import LegalVerification from './components/legal-verification'
 import DeveloperInfo from './components/developer-info'
 
 const STEPS = [
-  { id: 'basic', title: 'Basic Details' },
-  { id: 'specs', title: 'Specifications' },
+  { id: 'basicDetails', title: 'Basic Details' },
+  { id: 'specifications', title: 'Specifications' },
   { id: 'location', title: 'Location' },
-  { id: 'investment', title: 'Investment Info' },
+  { id: 'investmentInfo', title: 'Investment Info' },
   { id: 'media', title: 'Media' },
-  { id: 'legal', title: 'Legal & Docs' },
-  { id: 'developer', title: 'Developer Info' }
+  { id: 'legalVerification', title: 'Legal & Docs' },
+  { id: 'developerInfo', title: 'Developer Info' }
 ]
 
 function DeveloperListPropertyForm() {
@@ -201,8 +201,8 @@ function DeveloperListPropertyForm() {
   const onSubmit = async (data: PropertyFormValues) => {
     setIsSubmitting(true)
     try {
-      const totalUnits = data.investmentInfo.totalInvestmentUnits
-      const unitPrice = data.investmentInfo.totalPropertyPrice / totalUnits
+      const totalUnits = data.investmentInfo.totalInvestmentUnits || 1
+      const unitPrice = totalUnits > 0 ? data.investmentInfo.totalPropertyPrice / totalUnits : 0
       const devCompId = data.developerInfo?.developerId || developerId || (user as any)?.developerId || `DEV${user?.id?.substring(0, 3).toUpperCase()}`
 
       const payload = {

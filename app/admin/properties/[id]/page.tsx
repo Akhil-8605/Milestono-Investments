@@ -138,7 +138,7 @@ export default function AdminPropertyDetailPage() {
                 <div>
                   <h1 className="text-3xl font-extrabold text-foreground">{property.name}</h1>
                   <p className="text-muted-foreground flex items-center gap-2 mt-2 font-medium">
-                    <MapPin className="w-4 h-4" /> {typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {typeof property.location === 'object' ? property.location.state : property.city}
+                    <MapPin className="w-4 h-4" /> {property.location && typeof property.location === 'object' ? property.location.areaLocality || property.location.city : property.location}, {property.location && typeof property.location === 'object' ? property.location.state : property.city}
                   </p>
                   <p className="mt-4 text-sm max-w-xl text-muted-foreground leading-relaxed line-clamp-3">
                     {property.description}

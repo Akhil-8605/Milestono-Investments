@@ -11,8 +11,10 @@ const MapComponent = dynamic(() => import('./map'), { ssr: false, loading: () =>
 export default function LocationDetails() {
   const { register, watch, setValue, formState: { errors } } = useFormContext<PropertyFormValues>()
   
-  const lat = watch('location.latitude') || 28.6139 // Default New Delhi
-  const lng = watch('location.longitude') || 77.2090
+  const rawLat = watch('location.latitude')
+  const rawLng = watch('location.longitude')
+  const lat = Number.isFinite(rawLat) ? rawLat : 28.6139 // Default New Delhi
+  const lng = Number.isFinite(rawLng) ? rawLng : 77.2090
   
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)

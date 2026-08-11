@@ -252,7 +252,7 @@ export default function PropertyDetailsPage() {
   }
   const chartData = filterChartData()
 
-  const loc = typeof property.location === 'object' ? property.location : null
+  const loc = (property.location && typeof property.location === 'object') ? property.location : null
   const rawForm = (property as any).rawFormData || {}
   const specs = property.specifications || rawForm.specifications || null
   const inv = property.investmentInfo || rawForm.investmentInfo || null

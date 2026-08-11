@@ -71,7 +71,7 @@ export default function MarketPage() {
     
     if (city !== 'All') {
       filtered = filtered.filter(p => {
-        const c = typeof p.location === 'object' ? p.location.city : p.city
+        const c = p.location && typeof p.location === 'object' ? p.location.city : p.city
         return c?.toLowerCase() === city.toLowerCase()
       })
     }
@@ -81,7 +81,7 @@ export default function MarketPage() {
     if (qStr) {
       const queryLower = qStr.toLowerCase()
       filtered = filtered.filter(p => {
-        const locStr = typeof p.location === 'object' ? p.location.city : (p.city || '');
+        const locStr = p.location && typeof p.location === 'object' ? p.location.city : (p.city || '');
         return p.name?.toLowerCase().includes(queryLower) ||
                p.symbol?.toLowerCase().includes(queryLower) ||
                locStr.toLowerCase().includes(queryLower)
@@ -421,7 +421,7 @@ const MiniChart = ({ isUp }: { isUp: boolean }) => (
                               </div>
                               <div className="flex items-center gap-1 mt-0.5">
                                 <MapPin size={10} className="text-muted-foreground" />
-                                <span className="text-muted-foreground text-[11px]">{typeof p.location === 'object' ? p.location.city : p.city}</span>
+                                <span className="text-muted-foreground text-[11px]">{p.location && typeof p.location === 'object' ? p.location.city : p.city}</span>
                                 <span className="text-muted-foreground text-[11px] hidden lg:inline line-clamp-1 max-w-[120px]">· {p.name}</span>
                               </div>
                             </div>
