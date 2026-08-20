@@ -8,8 +8,8 @@ import { useState } from 'react'
 
 const AREA_TYPES = ['Built-up Area', 'Carpet Area', 'Plot Area']
 const DEFAULT_AMENITIES = [
-  'Swimming Pool', 'Gym', 'Lift', 'Club House', 'Garden', 
-  "Children's Play Area", 'Security', 'CCTV', 'Power Backup', 
+  'Swimming Pool', 'Gym', 'Lift', 'Club House', 'Garden',
+  "Children's Play Area", 'Security', 'CCTV', 'Power Backup',
   'Water Supply', 'EV Charging', 'Visitor Parking', 'WiFi', 'Fire Safety'
 ]
 
@@ -19,7 +19,7 @@ export default function Specifications() {
   const activeAreaValue = watch('specifications.areaValue')
   const selectedAmenities = watch('specifications.amenities') || []
   const furnishedStatus = watch('specifications.furnishedStatus')
-  
+
   const [customAmenity, setCustomAmenity] = useState('')
   const [amenitiesList, setAmenitiesList] = useState(DEFAULT_AMENITIES)
 
@@ -71,10 +71,10 @@ export default function Specifications() {
 
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Area Value (sq.ft) *</label>
-          <Input 
-            {...register('specifications.areaValue', { valueAsNumber: true })} 
+          <Input
+            {...register('specifications.areaValue', { valueAsNumber: true })}
             type="number"
-            placeholder="e.g. 1500" 
+            placeholder="e.g. 1500"
             className="h-11 bg-muted/50 text-foreground"
           />
           <p className="text-[10px] text-primary">{activeAreaValue > 0 ? numberToIndianWords(activeAreaValue) : ''}</p>
@@ -83,63 +83,63 @@ export default function Specifications() {
 
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Age of Property (Years)</label>
-          <Input 
-            {...register('specifications.ageOfProperty', { valueAsNumber: true })} 
+          <Input
+            {...register('specifications.ageOfProperty', { valueAsNumber: true })}
             type="number"
-            placeholder="e.g. 2 (0 for new)" 
+            placeholder="e.g. 2 (0 for new)"
             className="h-11 bg-muted/50 text-foreground"
           />
           {errors.specifications?.ageOfProperty && <p className="text-[10px] text-red-500">{errors.specifications.ageOfProperty.message}</p>}
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Floor Number</label>
-          <Input 
-            {...register('specifications.floorNumber', { valueAsNumber: true })} 
-            type="number"
-            placeholder="e.g. 5" 
-            className="h-11 bg-muted/50 text-foreground"
-          />
-          {errors.specifications?.floorNumber && <p className="text-[10px] text-red-500">{errors.specifications.floorNumber.message}</p>}
-        </div>
-
-        <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Floors</label>
-          <Input 
-            {...register('specifications.totalFloors', { valueAsNumber: true })} 
+          <Input
+            {...register('specifications.totalFloors', { valueAsNumber: true })}
             type="number"
-            placeholder="e.g. 20" 
+            placeholder="e.g. 20"
             className="h-11 bg-muted/50 text-foreground"
           />
           {errors.specifications?.totalFloors && <p className="text-[10px] text-red-500">{errors.specifications.totalFloors.message}</p>}
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bedrooms</label>
-          <Input 
-            {...register('specifications.bedrooms', { valueAsNumber: true })} 
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Floor Number</label>
+          <Input
+            {...register('specifications.floorNumber', { valueAsNumber: true })}
             type="number"
-            placeholder="e.g. 3" 
+            placeholder="e.g. 5"
+            className="h-11 bg-muted/50 text-foreground"
+          />
+          {errors.specifications?.floorNumber && <p className="text-[10px] text-red-500">{errors.specifications.floorNumber.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bedrooms</label>
+          <Input
+            {...register('specifications.bedrooms', { valueAsNumber: true })}
+            type="number"
+            placeholder="e.g. 3"
             className="h-11 bg-muted/50 text-foreground"
           />
         </div>
 
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bathrooms</label>
-          <Input 
-            {...register('specifications.bathrooms', { valueAsNumber: true })} 
+          <Input
+            {...register('specifications.bathrooms', { valueAsNumber: true })}
             type="number"
-            placeholder="e.g. 3" 
+            placeholder="e.g. 3"
             className="h-11 bg-muted/50 text-foreground"
           />
         </div>
-        
+
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Balconies</label>
-          <Input 
-            {...register('specifications.balconies', { valueAsNumber: true })} 
+          <Input
+            {...register('specifications.balconies', { valueAsNumber: true })}
             type="number"
-            placeholder="e.g. 2" 
+            placeholder="e.g. 2"
             className="h-11 bg-muted/50 text-foreground"
           />
         </div>
@@ -187,10 +187,10 @@ export default function Specifications() {
           {errors.specifications?.amenities && <p className="text-[10px] text-red-500">{errors.specifications.amenities.message}</p>}
 
           <div className="flex items-center gap-2 max-w-sm mt-2">
-            <Input 
+            <Input
               value={customAmenity}
               onChange={(e) => setCustomAmenity(e.target.value)}
-              placeholder="Add custom amenity" 
+              placeholder="Add custom amenity"
               className="h-9 bg-muted/50 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomAmenity())}
             />
